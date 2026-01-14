@@ -1,0 +1,17 @@
+
+# Mac
+.DS_Store
+
+# Java/Spring
+target/
+.mvn/wrapper/maven-wrapper.properties
+**.class
+
+# IntelliJ
+.idea/
+*.iml
+*.iws
+
+# Sensitive Data
+application.properties
+*,properties

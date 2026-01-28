@@ -3,6 +3,7 @@
     "name": "frontend",
     "slug": "frontend",
     "version": "1.0.0",
+    "scheme": "mychefai",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -13,7 +14,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mychefai.healthytable"
     },
     "android": {
       "adaptiveIcon": {

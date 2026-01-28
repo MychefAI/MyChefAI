@@ -1,0 +1,479 @@
+
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ScrollView, Modal, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { colors } from '../theme/colors';
+
+const WEEK_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+
+export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, onToggleSidebar }) {
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [selectedDate, setSelectedDate] = useState(null);
+    const [showMealModal, setShowMealModal] = useState(false);
+
+    // Helper functions
+    const getCalendarDays = () => {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const startingDayOfWeek = firstDay.getDay();
+
+        const days = [];
+        for (let i = 0; i < startingDayOfWeek; i++) days.push(null);
+        for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
+        return days;
+    };
+
+    const formatDate = (date) => {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    };
+
+    const getMealForDate = (date) => {
+        if (!date) return null;
+        const dateKey = formatDate(date);
+        return mealData[dateKey] || null;
+    };
+
+    const hasMeal = (date) => !!getMealForDate(date);
+
+    const isToday = (date) => {
+        if (!date) return false;
+        const today = new Date();
+        return date.getDate() === today.getDate() &&
+            date.getMonth() === today.getMonth() &&
+            date.getFullYear() === today.getFullYear();
+    };
+
+    const handleDateClick = (date) => {
+        if (!date) return;
+        setSelectedDate(date);
+        setShowMealModal(true);
+    };
+
+    const goToPreviousMonth = () => {
+        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    };
+
+    const goToNextMonth = () => {
+        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    };
+
+    // Render Logic
+    const selectedMeal = getMealForDate(selectedDate);
+
+    const renderMealSection = (type, icon, title, color, bgColor) => {
+        const mealContent = selectedMeal ? selectedMeal[type] : null;
+
+        return (
+            <View style={[styles.mealSection, { backgroundColor: bgColor, borderColor: color + '40' }]}>
+                <View style={styles.mealHeader}>
+                    <Text style={{ fontSize: 20, marginRight: 8 }}>{icon}</Text>
+                    <Text style={[styles.mealTitle, { color: color }]}>{title}</Text>
+                </View>
+                <Text style={styles.mealContent}>
+                    {mealContent || '기록 없음'}
+                </Text>
+            </View>
+        );
+    };
+
+    return (
+        <SafeAreaView style={styles.container}>
+            {/* Header */}
+            <View style={styles.header}>
+                <View style={styles.headerLeft}>
+                    <TouchableOpacity onPress={onToggleSidebar} style={styles.menuButton}>
+                        <Ionicons name="menu" size={24} color={colors.text} />
+                    </TouchableOpacity>
+                    <View>
+                        <Text style={styles.headerTitle}>식단 기록</Text>
+                        <Text style={styles.headerSubtitle}>매일 먹은 음식을 기록하세요</Text>
+                    </View>
+                </View>
+            </View>
+
+            {/* Calendar Controller */}
+            <View style={styles.calendarControls}>
+                <TouchableOpacity onPress={goToPreviousMonth} style={styles.arrowButton}>
+                    <Ionicons name="chevron-back" size={24} color={colors.white} />
+                </TouchableOpacity>
+                <Text style={styles.monthTitle}>
+                    {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월
+                </Text>
+                <TouchableOpacity onPress={goToNextMonth} style={styles.arrowButton}>
+                    <Ionicons name="chevron-forward" size={24} color={colors.white} />
+                </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.content}>
+                {/* Days Header */}
+                <View style={styles.weekRow}>
+                    {WEEK_DAYS.map((day, index) => (
+                        <Text
+                            key={day}
+                            style={[
+                                styles.weekDayText,
+                                index === 0 && { color: '#EF4444' },
+                                index === 6 && { color: '#3B82F6' }
+                            ]}
+                        >
+                            {day}
+                        </Text>
+                    ))}
+                </View>
+
+                {/* Days Grid */}
+                <View style={styles.daysGrid}>
+                    {getCalendarDays().map((date, index) => (
+                        <TouchableOpacity
+                            key={index}
+                            style={[
+                                styles.dayCell,
+                                date && isToday(date) && styles.todayCell
+                            ]}
+                            onPress={() => handleDateClick(date)}
+                            disabled={!date}
+                        >
+                            {date && (
+                                <>
+                                    <Text style={[
+                                        styles.dayText,
+                                        isToday(date) && styles.todayText,
+                                        !isToday(date) && index % 7 === 0 && { color: '#EF4444' },
+                                        !isToday(date) && index % 7 === 6 && { color: '#3B82F6' },
+                                    ]}
+                                    >
+                                        {date.getDate()}
+                                    </Text>
+                                    {hasMeal(date) && <View style={styles.hasMealDot} />}
+                                </>
+                            )}
+                        </TouchableOpacity>
+                    ))}
+                </View>
+
+                {/* Stats */}
+                <View style={styles.statsContainer}>
+                    <View style={[styles.statCard, { borderColor: '#FCD34D' }]}>
+                        <Text style={styles.statIcon}>🌅</Text>
+                        <View>
+                            <Text style={styles.statLabel}>아침</Text>
+                            <Text style={styles.statValue}>
+                                {Object.values(mealData).filter(m => m.breakfast).length}일
+                            </Text>
+                        </View>
+                    </View>
+                    <View style={[styles.statCard, { borderColor: '#34D399' }]}>
+                        <Text style={styles.statIcon}>☀️</Text>
+                        <View>
+                            <Text style={styles.statLabel}>점심</Text>
+                            <Text style={styles.statValue}>
+                                {Object.values(mealData).filter(m => m.lunch).length}일
+                            </Text>
+                        </View>
+                    </View>
+                    <View style={[styles.statCard, { borderColor: '#60A5FA' }]}>
+                        <Text style={styles.statIcon}>🌙</Text>
+                        <View>
+                            <Text style={styles.statLabel}>저녁</Text>
+                            <Text style={styles.statValue}>
+                                {Object.values(mealData).filter(m => m.dinner).length}일
+                            </Text>
+                        </View>
+                    </View>
+                </View>
+            </ScrollView>
+
+            {/* Meal Detail Modal */}
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={showMealModal}
+                onRequestClose={() => setShowMealModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <View>
+                                <Text style={styles.modalDate}>
+                                    {selectedDate?.getMonth() + 1}월 {selectedDate?.getDate()}일
+                                </Text>
+                                <Text style={styles.modalDay}>
+                                    {selectedDate && WEEK_DAYS[selectedDate.getDay()]}요일
+                                </Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setShowMealModal(false)} style={styles.closeButton}>
+                                <Ionicons name="close" size={24} color="#6B7280" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView contentContainerStyle={styles.mealList}>
+                            {renderMealSection('breakfast', '🌅', '아침', '#D97706', '#FFFBEB')}
+                            {renderMealSection('lunch', '☀️', '점심', '#059669', '#ECFDF5')}
+                            {renderMealSection('dinner', '🌙', '저녁', '#2563EB', '#EFF6FF')}
+
+                            {/* Snacks */}
+                            <View style={[styles.mealSection, { backgroundColor: '#FDF2F8', borderColor: '#DB277740' }]}>
+                                <View style={styles.mealHeader}>
+                                    <Text style={{ fontSize: 20, marginRight: 8 }}>🍪</Text>
+                                    <Text style={[styles.mealTitle, { color: '#DB2777' }]}>간식</Text>
+                                </View>
+                                {selectedMeal?.snacks && selectedMeal.snacks.length > 0 ? (
+                                    <View style={styles.snackContainer}>
+                                        {selectedMeal.snacks.map((snack, idx) => (
+                                            <View key={idx} style={styles.snackTag}>
+                                                <Text style={styles.snackText}>{snack}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                ) : (
+                                    <Text style={styles.mealContent}>기록 없음</Text>
+                                )}
+                            </View>
+
+                            {!selectedMeal && (
+                                <View style={styles.emptyState}>
+                                    <Text style={{ color: '#9CA3AF', textAlign: 'center' }}>기록된 식사가 없습니다</Text>
+                                </View>
+                            )}
+                        </ScrollView>
+
+                        <TouchableOpacity style={styles.addMealButton}>
+                            <Ionicons name="add" size={20} color="white" />
+                            <Text style={styles.addMealButtonText}>식사 추가 / 수정</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+        </SafeAreaView>
+    );
+}
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#F9FAFB',
+    },
+    header: {
+        padding: 16,
+        backgroundColor: 'white',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingTop: Platform.OS === 'android' ? 40 : 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6'
+    },
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    menuButton: {
+        padding: 8,
+        marginRight: 8,
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#111827',
+    },
+    headerSubtitle: {
+        fontSize: 12,
+        color: '#6B7280',
+    },
+    calendarControls: {
+        backgroundColor: colors.primary,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        justifyContent: 'space-between',
+        padding: 20,
+        marginHorizontal: 24,
+        marginTop: 16,
+        marginBottom: 16,
+        borderRadius: 16,
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 5,
+    },
+    monthTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: 'white',
+    },
+    arrowButton: {
+        padding: 8,
+    },
+    content: {
+        flex: 1,
+    },
+    weekRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        justifyContent: 'space-around',
+        paddingHorizontal: 24,
+        marginBottom: 8,
+    },
+    weekDayText: {
+        width: 40,
+        textAlign: 'center',
+        fontWeight: 'bold',
+        color: '#4B5563',
+    },
+    daysGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        paddingHorizontal: 24,
+    },
+    dayCell: {
+        width: '14.28%', // 100% / 7
+        aspectRatio: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginVertical: 4,
+        borderRadius: 12,
+    },
+    todayCell: {
+        backgroundColor: colors.primary,
+    },
+    dayText: {
+        fontSize: 16,
+        fontWeight: '500',
+        color: '#374151',
+    },
+    todayText: {
+        color: 'white',
+        fontWeight: 'bold',
+    },
+    hasMealDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: colors.primary,
+        marginTop: 4,
+    },
+    statsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        padding: 24,
+        gap: 8,
+    },
+    statCard: {
+        flex: 1,
+        backgroundColor: 'white',
+        padding: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderBottomWidth: 3,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    statIcon: {
+        fontSize: 20,
+        marginRight: 8,
+    },
+    statLabel: {
+        fontSize: 11,
+        color: '#6B7280',
+    },
+    statValue: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#1F2937',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: 'white',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24,
+        height: '80%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 24,
+    },
+    modalDate: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#111827',
+    },
+    modalDay: {
+        fontSize: 14,
+        color: '#6B7280',
+        marginTop: 2,
+    },
+    closeButton: {
+        padding: 4,
+        backgroundColor: '#F3F4F6',
+        borderRadius: 20,
+    },
+    mealList: {
+        gap: 16,
+        paddingBottom: 24,
+    },
+    mealSection: {
+        padding: 16,
+        borderRadius: 16,
+        borderWidth: 1,
+    },
+    mealHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    mealTitle: {
+        fontWeight: 'bold',
+    },
+    mealContent: {
+        color: '#4B5563',
+        marginLeft: 30, // aligning with text
+    },
+    snackContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginLeft: 30,
+        gap: 6,
+    },
+    snackTag: {
+        backgroundColor: '#FCE7F3',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+    },
+    snackText: {
+        color: '#DB2777',
+        fontSize: 12,
+    },
+    emptyState: {
+        padding: 32,
+        alignItems: 'center',
+    },
+    addMealButton: {
+        backgroundColor: colors.primary,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        borderRadius: 16,
+        marginTop: 'auto',
+    },
+    addMealButtonText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 16,
+        marginLeft: 8,
+    },
+});

@@ -49,6 +49,7 @@ export default function ChatScreen({ messages, setMessages, healthProfile, setMe
     const [selectedRecipeToAdd, setSelectedRecipeToAdd] = useState(null);
     const [targetDate, setTargetDate] = useState(new Date());
     const [targetMealType, setTargetMealType] = useState('lunch');
+    const [recipeDetails, setRecipeDetails] = useState({ title: '', fullText: '' });
 
     // TTS State
     const [speakingMessageId, setSpeakingMessageId] = useState(null);
@@ -159,6 +160,11 @@ export default function ChatScreen({ messages, setMessages, healthProfile, setMe
         setInputText('');
         setLoading(true);
 
+        // 📝 Record AI Activity
+        if (isLoggedIn) {
+            axios.post(`${config.API_BASE_URL}/activities/log`, { isAi: true }).catch(e => console.log("AI Activity log failed", e));
+        }
+
         try {
             // Prepare History for Context
             const history = messages.slice(-10).map(msg => ({
@@ -247,15 +253,56 @@ export default function ChatScreen({ messages, setMessages, healthProfile, setMe
     };
 
     const openPlanModal = (text) => {
-        const title = text.split('\n')[0].replace(/\*\*/g, '').substring(0, 20) + '...';
+        // Extract recipe title (first line or truncated text)
+        const lines = text.split('\n');
+        let title = lines[0].replace(/\*\*/g, '').replace(/제목: /g, '').trim();
+        if (title.length > 30) title = title.substring(0, 27) + '...';
+
         setSelectedRecipeToAdd(title);
+        setRecipeDetails({ title: title, fullText: text });
         setModalVisible(true);
     };
 
-    const confirmAddToPlan = () => {
-        // ... (Same logic)
-        setModalVisible(false);
-        Alert.alert("완료", "식단에 추가되었습니다! 📅");
+    const confirmAddToPlan = async () => {
+        if (!isLoggedIn) {
+            Alert.alert("로그인 필요", "식단 기록은 회원만 가능합니다.");
+            return;
+        }
+
+        const dateKey = targetDate.toISOString().split('T')[0];
+
+        // Extract calories from the full AI response text
+        // Looks for patterns like "120kcal", "120 kcal", "120 칼로리"
+        const calorieMatch = recipeDetails.fullText.match(/(\d+)\s*(kcal|칼로리)/i);
+        const calories = calorieMatch ? parseInt(calorieMatch[1]) : null;
+
+        try {
+            const payload = {
+                recordDate: dateKey,
+                [targetMealType]: selectedRecipeToAdd,
+                [`${targetMealType}Calories`]: calories,
+                [`isAi${targetMealType.charAt(0).toUpperCase() + targetMealType.slice(1)}`]: true
+            };
+
+            await axios.post(`${config.API_BASE_URL}/meallogs`, payload);
+
+            // Update local state to reflect change immediately
+            setMealData(prev => ({
+                ...prev,
+                [dateKey]: {
+                    ...(prev[dateKey] || {}),
+                    [targetMealType]: selectedRecipeToAdd,
+                    [`${targetMealType}Calories`]: calories,
+                    [`isAi${targetMealType.charAt(0).toUpperCase() + targetMealType.slice(1)}`]: true
+                }
+            }));
+
+            setModalVisible(false);
+            Alert.alert("성공 📅", `${dateKey} ${targetMealType === 'breakfast' ? '아침' : targetMealType === 'lunch' ? '점심' : '저녁'} 식단에 추가되었습니다! ${calories ? `(${calories}kcal)` : ''}`);
+        } catch (error) {
+            console.error('Failed to save meal log:', error);
+            Alert.alert("오류", "식단 저장에 실패했습니다.");
+        }
     };
 
     const renderItem = ({ item }) => (
@@ -401,8 +448,6 @@ export default function ChatScreen({ messages, setMessages, healthProfile, setMe
                 </TouchableOpacity>
             </KeyboardAvoidingView>
 
-            {/* Modal Logic (Keeping simplified for brevity, assume formatting matches existing) */}
-            {/* ... Modal Code ... */}
             <Modal
                 animationType="slide"
                 transparent={true}
@@ -411,22 +456,58 @@ export default function ChatScreen({ messages, setMessages, healthProfile, setMe
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>식단에 추가하기</Text>
-                        <Text style={styles.recipePreview}>{selectedRecipeToAdd}</Text>
+                        <View style={styles.modalHeaderTitleRow}>
+                            <Ionicons name="calendar" size={24} color={colors.primary} />
+                            <Text style={styles.modalTitle}>식단 기록하기</Text>
+                        </View>
 
-                        {/* Simplified Modal Content */}
+                        <View style={styles.recipeCard}>
+                            <Text style={styles.recipePreview}>{selectedRecipeToAdd}</Text>
+                        </View>
+
+                        <Text style={styles.inputLabel}>날짜 선택</Text>
+                        <View style={styles.selectionRow}>
+                            <TouchableOpacity
+                                style={[styles.selectButton, targetDate.toDateString() === new Date().toDateString() && styles.selectButtonActive]}
+                                onPress={() => setTargetDate(new Date())}
+                            >
+                                <Text style={[styles.selectButtonText, targetDate.toDateString() === new Date().toDateString() && styles.selectButtonTextActive]}>오늘</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.selectButton, targetDate.toDateString() === new Date(Date.now() + 86400000).toDateString() && styles.selectButtonActive]}
+                                onPress={() => setTargetDate(new Date(Date.now() + 86400000))}
+                            >
+                                <Text style={[styles.selectButtonText, targetDate.toDateString() === new Date(Date.now() + 86400000).toDateString() && styles.selectButtonTextActive]}>내일</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={styles.inputLabel}>식사 종류</Text>
+                        <View style={styles.selectionRow}>
+                            {['breakfast', 'lunch', 'dinner'].map((type) => (
+                                <TouchableOpacity
+                                    key={type}
+                                    style={[styles.selectButton, targetMealType === type && styles.selectButtonActive]}
+                                    onPress={() => setTargetMealType(type)}
+                                >
+                                    <Text style={[styles.selectButtonText, targetMealType === type && styles.selectButtonTextActive]}>
+                                        {type === 'breakfast' ? '아침' : type === 'lunch' ? '점심' : '저녁'}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
                         <View style={styles.modalActions}>
                             <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.cancelButton}>
                                 <Text style={styles.cancelButtonText}>취소</Text>
                             </TouchableOpacity>
                             <TouchableOpacity onPress={confirmAddToPlan} style={styles.confirmButton}>
-                                <Text style={styles.confirmButtonText}>저장</Text>
+                                <Text style={styles.confirmButtonText}>저장하기</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
                 </View>
             </Modal>
-        </SafeAreaView>
+        </SafeAreaView >
     );
 }
 
@@ -462,15 +543,25 @@ const styles = StyleSheet.create({
     logoContainer: { width: 80, height: 80, backgroundColor: colors.primary, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
     emptyTitle: { fontSize: 24, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 },
     emptySubtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 40 },
+
+    // Modal Styles
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    modalContent: { backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-    modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 12, color: '#111827' },
-    recipePreview: { fontSize: 14, color: '#4B5563', marginBottom: 20, fontStyle: 'italic' },
-    modalActions: { flexDirection: 'row', gap: 12, marginTop: 16 },
-    cancelButton: { flex: 1, padding: 14, backgroundColor: '#F3F4F6', borderRadius: 12, alignItems: 'center' },
-    confirmButton: { flex: 1, padding: 14, backgroundColor: colors.secondary, borderRadius: 12, alignItems: 'center' },
+    modalContent: { backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+    modalHeaderTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
+    modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
+    recipeCard: { backgroundColor: '#F9FAFB', padding: 16, borderRadius: 12, borderLeftWidth: 4, borderLeftColor: colors.primary, marginBottom: 20 },
+    recipePreview: { fontSize: 16, color: '#374151', fontWeight: '500' },
+    inputLabel: { fontSize: 14, fontWeight: 'bold', color: '#4B5563', marginBottom: 8, marginLeft: 4 },
+    selectionRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+    selectButton: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: '#F3F4F6', alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB' },
+    selectButtonActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+    selectButtonText: { fontSize: 14, color: '#6B7280', fontWeight: '600' },
+    selectButtonTextActive: { color: colors.primary, fontWeight: 'bold' },
+    modalActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
+    cancelButton: { flex: 1, padding: 16, backgroundColor: '#F3F4F6', borderRadius: 12, alignItems: 'center' },
+    confirmButton: { flex: 2, padding: 16, backgroundColor: colors.primary, borderRadius: 12, alignItems: 'center' },
     cancelButtonText: { color: '#374151', fontWeight: '600' },
-    confirmButtonText: { color: 'white', fontWeight: 'bold' },
+    confirmButtonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 
     // 🎙️ Cooking Mode Styles
     cookingModeButton: {

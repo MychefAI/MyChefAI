@@ -1,15 +1,73 @@
-
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ScrollView, Modal, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ScrollView, Modal, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
+import axios from 'axios';
+import config from '../config';
+import { useAuth } from '../context/AuthContext';
 
 const WEEK_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, onToggleSidebar }) {
+    const { isLoggedIn } = useAuth();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(null);
     const [showMealModal, setShowMealModal] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [activityData, setActivityData] = useState({}); // { '2026-02-02': { hasAiInteraction: true } }
+
+    // Fetch meal logs and activity logs from backend
+    useEffect(() => {
+        if (isLoggedIn) {
+            fetchMealLogs();
+            fetchActivityLogs();
+        }
+    }, [isLoggedIn]);
+
+    const fetchActivityLogs = async () => {
+        try {
+            const response = await axios.get(`${config.API_BASE_URL}/activities`);
+            const logs = response.data;
+            const transformed = {};
+            logs.forEach(log => {
+                transformed[log.activityDate] = log;
+            });
+            setActivityData(transformed);
+        } catch (error) {
+            console.error('Failed to fetch activity logs:', error);
+        }
+    };
+
+    const fetchMealLogs = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.get(`${config.API_BASE_URL}/meallogs`);
+            const logs = response.data;
+
+            // Transform list to object with date keys
+            const transformedData = {};
+            logs.forEach(log => {
+                transformedData[log.recordDate] = {
+                    breakfast: log.breakfast,
+                    lunch: log.lunch,
+                    dinner: log.dinner,
+                    breakfastCalories: log.breakfastCalories,
+                    lunchCalories: log.lunchCalories,
+                    dinnerCalories: log.dinnerCalories,
+                    isAiBreakfast: log.isAiBreakfast,
+                    isAiLunch: log.isAiLunch,
+                    isAiDinner: log.isAiDinner,
+                    snacks: log.snacks ? JSON.parse(log.snacks) : []
+                };
+            });
+
+            setMealData(transformedData);
+        } catch (error) {
+            console.error('Failed to fetch meal logs:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // Helper functions
     const getCalendarDays = () => {
@@ -65,12 +123,26 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
 
     const renderMealSection = (type, icon, title, color, bgColor) => {
         const mealContent = selectedMeal ? selectedMeal[type] : null;
+        const calories = selectedMeal ? selectedMeal[`${type}Calories`] : null;
+        const isAi = selectedMeal ? selectedMeal[`isAi${type.charAt(0).toUpperCase() + type.slice(1)}`] : false;
 
         return (
             <View style={[styles.mealSection, { backgroundColor: bgColor, borderColor: color + '40' }]}>
                 <View style={styles.mealHeader}>
-                    <Text style={{ fontSize: 20, marginRight: 8 }}>{icon}</Text>
-                    <Text style={[styles.mealTitle, { color: color }]}>{title}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        <Text style={{ fontSize: 20, marginRight: 8 }}>{icon}</Text>
+                        <Text style={[styles.mealTitle, { color: color }]}>{title}</Text>
+                        {isAi && (
+                            <View style={styles.aiBadge}>
+                                <Text style={styles.aiBadgeText}>AI</Text>
+                            </View>
+                        )}
+                    </View>
+                    {calories && (
+                        <View style={styles.calorieBadge}>
+                            <Text style={styles.calorieText}>{calories}kcal</Text>
+                        </View>
+                    )}
                 </View>
                 <Text style={styles.mealContent}>
                     {mealContent || '기록 없음'}
@@ -126,32 +198,49 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
 
                 {/* Days Grid */}
                 <View style={styles.daysGrid}>
-                    {getCalendarDays().map((date, index) => (
-                        <TouchableOpacity
-                            key={index}
-                            style={[
-                                styles.dayCell,
-                                date && isToday(date) && styles.todayCell
-                            ]}
-                            onPress={() => handleDateClick(date)}
-                            disabled={!date}
-                        >
-                            {date && (
-                                <>
-                                    <Text style={[
-                                        styles.dayText,
-                                        isToday(date) && styles.todayText,
-                                        !isToday(date) && index % 7 === 0 && { color: '#EF4444' },
-                                        !isToday(date) && index % 7 === 6 && { color: '#3B82F6' },
-                                    ]}
-                                    >
-                                        {date.getDate()}
-                                    </Text>
-                                    {hasMeal(date) && <View style={styles.hasMealDot} />}
-                                </>
-                            )}
-                        </TouchableOpacity>
-                    ))}
+                    {getCalendarDays().map((date, index) => {
+                        const meal = getMealForDate(date);
+                        const dateKey = date ? formatDate(date) : null;
+                        const activity = dateKey ? activityData[dateKey] : null;
+
+                        return (
+                            <TouchableOpacity
+                                key={index}
+                                style={[
+                                    styles.dayCell,
+                                    date && isToday(date) && styles.todayCell,
+                                    date && !isToday(date) && activity && (activity.hasAiInteraction ? styles.aiDayCell : styles.activeDayCell)
+                                ]}
+                                onPress={() => handleDateClick(date)}
+                                disabled={!date}
+                            >
+                                {date && (
+                                    <>
+                                        <Text style={[
+                                            styles.dayText,
+                                            isToday(date) && styles.todayText,
+                                            !isToday(date) && index % 7 === 0 && { color: '#EF4444' },
+                                            !isToday(date) && index % 7 === 6 && { color: '#3B82F6' },
+                                        ]}
+                                        >
+                                            {date.getDate()}
+                                        </Text>
+                                        <View style={styles.dotsRow}>
+                                            {meal?.breakfast && (
+                                                <View style={[styles.mealDot, { backgroundColor: '#F59E0B' }]} />
+                                            )}
+                                            {meal?.lunch && (
+                                                <View style={[styles.mealDot, { backgroundColor: '#10B981' }]} />
+                                            )}
+                                            {meal?.dinner && (
+                                                <View style={[styles.mealDot, { backgroundColor: '#3B82F6' }]} />
+                                            )}
+                                        </View>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                        );
+                    })}
                 </View>
 
                 {/* Stats */}
@@ -210,9 +299,9 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
                         </View>
 
                         <ScrollView contentContainerStyle={styles.mealList}>
-                            {renderMealSection('breakfast', '🌅', '아침', '#D97706', '#FFFBEB')}
-                            {renderMealSection('lunch', '☀️', '점심', '#059669', '#ECFDF5')}
-                            {renderMealSection('dinner', '🌙', '저녁', '#2563EB', '#EFF6FF')}
+                            {renderMealSection('breakfast', '🌅', '아침', '#F59E0B', '#FFFBEB')}
+                            {renderMealSection('lunch', '☀️', '점심', '#10B981', '#ECFDF5')}
+                            {renderMealSection('dinner', '🌙', '저녁', '#3B82F6', '#EFF6FF')}
 
                             {/* Snacks */}
                             <View style={[styles.mealSection, { backgroundColor: '#FDF2F8', borderColor: '#DB277740' }]}>
@@ -357,6 +446,18 @@ const styles = StyleSheet.create({
         backgroundColor: colors.primary,
         marginTop: 4,
     },
+    dotsRow: {
+        flexDirection: 'row',
+        gap: 2,
+        marginTop: 4,
+        height: 6,
+        justifyContent: 'center',
+    },
+    mealDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+    },
     statsContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -475,5 +576,38 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         fontSize: 16,
         marginLeft: 8,
+    },
+    calorieBadge: {
+        backgroundColor: 'rgba(0,0,0,0.05)',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 6,
+    },
+    calorieText: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        color: '#4B5563',
+    },
+    aiDayCell: {
+        backgroundColor: '#FEF3C7', // Amber 100
+        borderWidth: 1,
+        borderColor: '#FDE68A', // Amber 200
+    },
+    activeDayCell: {
+        backgroundColor: '#DCFCE7', // Green 100
+        borderWidth: 1,
+        borderColor: '#BBF7D0', // Green 200
+    },
+    aiBadge: {
+        backgroundColor: colors.secondary,
+        paddingHorizontal: 6,
+        paddingVertical: 1,
+        borderRadius: 4,
+        marginLeft: 6,
+    },
+    aiBadgeText: {
+        color: 'white',
+        fontSize: 10,
+        fontWeight: 'bold',
     },
 });

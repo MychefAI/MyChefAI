@@ -2,6 +2,8 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, StatusBar } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
+import axios from 'axios';
+import config from './src/config';
 
 import ChatScreen from './src/screens/ChatScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
@@ -24,6 +26,20 @@ function AppContent() {
   const [selectedPost, setSelectedPost] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { isLoggedIn, user } = useAuth(); // AuthContext 사용
+
+  // 📝 Record daily activity (attendance)
+  React.useEffect(() => {
+    if (isLoggedIn) {
+      const logActivity = async () => {
+        try {
+          await axios.post(`${config.API_BASE_URL}/activities/log`, { isAi: false });
+        } catch (e) {
+          console.log("Activity log failed", e);
+        }
+      };
+      logActivity();
+    }
+  }, [isLoggedIn]);
 
   const handleNavigate = (screen, data = null) => {
     // 🔒 보호된 라우트 체크

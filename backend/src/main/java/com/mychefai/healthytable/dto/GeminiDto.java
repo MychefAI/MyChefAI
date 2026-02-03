@@ -22,15 +22,33 @@ public class GeminiDto {
         private String role; // "user" or "model"
 
         public static Content user(String text) {
-            return new Content(List.of(new Part(text)), "user");
+            return new Content(List.of(Part.text(text)), "user");
         }
     }
 
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
     public static class Part {
         private String text;
+        private InlineData inline_data;
+
+        public static Part text(String text) {
+            return new Part(text, null);
+        }
+
+        public static Part image(String mimeType, String base64Data) {
+            return new Part(null, new InlineData(mimeType, base64Data));
+        }
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class InlineData {
+        private String mime_type;
+        private String data; // Base64
     }
 
     @Data

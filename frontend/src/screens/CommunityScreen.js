@@ -1,12 +1,13 @@
-
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Image, ActivityIndicator, RefreshControl, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { colors } from '../theme/colors';
 import config from '../config';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
+    const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState('discover'); // 'discover', 'feed', or 'posts'
     const [feedItems, setFeedItems] = useState([]);
     const [userPosts, setUserPosts] = useState([]);
@@ -199,7 +200,7 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
     return (
         <View style={styles.container}>
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}>
                 <TouchableOpacity onPress={onToggleSidebar} style={{ marginRight: 12 }}>
                     <Ionicons name="menu" size={28} color={colors.text} />
                 </TouchableOpacity>
@@ -353,7 +354,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingTop: Platform.OS === 'android' ? 40 : 16,
         paddingBottom: 12,
         backgroundColor: colors.surface,
         borderBottomWidth: 1,

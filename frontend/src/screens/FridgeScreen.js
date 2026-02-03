@@ -1,24 +1,174 @@
-
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, SafeAreaView, TextInput, Modal, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, SafeAreaView, TextInput, Modal, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import axios from 'axios';
+import config from '../config';
+import { useAuth } from '../context/AuthContext';
 
 const CATEGORIES = ['전체', '채소', '과일', '육류', '유제품', '달걀', '기타'];
 
 export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpen, onToggleSidebar }) {
+    const { token } = useAuth();
     const [selectedCategory, setSelectedCategory] = useState('전체');
     const [modalVisible, setModalVisible] = useState(false);
+    const [scanning, setScanning] = useState(false);
+
+    // Expiry Date rules
+    const EXPIRY_RULES = {
+        '육류': 2,
+        '채소': 5,
+        '과일': 7,
+        '유제품': 10,
+        '달걀': 21,
+        '기타': 7
+    };
+
+    const calculateExpiryDate = (category) => {
+        const days = EXPIRY_RULES[category] || 7;
+        const date = new Date();
+        date.setDate(date.getDate() + days);
+        return date.toISOString().split('T')[0];
+    };
 
     // Add Modal State
     const [newItemName, setNewItemName] = useState('');
     const [newItemQuantity, setNewItemQuantity] = useState('');
     const [newItemCategory, setNewItemCategory] = useState('기타');
     const [newItemExpiry, setNewItemExpiry] = useState('');
+    const [helpModalVisible, setHelpModalVisible] = useState(false);
 
-    const filteredItems = selectedCategory === '전체'
-        ? fridgeItems
-        : fridgeItems.filter(item => item.category === selectedCategory);
+    // Edit Modal State
+    const [isEditMode, setIsEditMode] = useState(false);
+    const [editingItemId, setEditingItemId] = useState(null);
+
+    // Fetch initial data
+    useEffect(() => {
+        fetchFridgeItems();
+    }, []);
+
+    const fetchFridgeItems = async () => {
+        try {
+            const response = await axios.get(`${config.API_BASE_URL}/fridge`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setFridgeItems(response.data);
+        } catch (error) {
+            console.error('냉장고 조회 실패:', error);
+        }
+    };
+
+    const handleAddItem = async () => {
+        if (!newItemName.trim()) return;
+
+        const newItem = {
+            name: newItemName,
+            quantity: newItemQuantity || '1개',
+            category: newItemCategory,
+            expiryDate: newItemExpiry || calculateExpiryDate(newItemCategory),
+        };
+
+        try {
+            const response = await axios.post(`${config.API_BASE_URL}/fridge`, newItem, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setFridgeItems(prev => [...prev, response.data]);
+            setModalVisible(false);
+            resetForm();
+        } catch (error) {
+            console.error('재료 추가 실패:', error);
+            alert('재료 추가에 실패했습니다.');
+        }
+    };
+
+    const handleUpdateItem = async () => {
+        if (!newItemName.trim() || !editingItemId) return;
+
+        const updatedItem = {
+            name: newItemName,
+            quantity: newItemQuantity || '1개',
+            category: newItemCategory,
+            expiryDate: newItemExpiry,
+        };
+
+        try {
+            const response = await axios.put(`${config.API_BASE_URL}/fridge/${editingItemId}`, updatedItem, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setFridgeItems(prev => prev.map(item => item.id === editingItemId ? response.data : item));
+            setModalVisible(false);
+            resetForm();
+        } catch (error) {
+            console.error('재료 수정 실패:', error);
+            alert('재료 수정에 실패했습니다.');
+        }
+    };
+
+    const handleAdjustQuantity = async (id, currentQty, delta) => {
+        // Simple regex to find the number in "2개", "500g" etc.
+        const match = currentQty.match(/^(\d+)(.*)$/);
+        if (!match) return;
+
+        const val = parseInt(match[1]);
+        const unit = match[2];
+        const newVal = val + delta;
+
+        if (newVal <= 0) {
+            Alert.alert(
+                '삭제 확인',
+                '수량이 0이 되었습니다. 이 항목을 삭제하시겠어요?',
+                [
+                    { text: '취소', style: 'cancel' },
+                    { text: '삭제', style: 'destructive', onPress: () => handleDeleteItem(id) }
+                ]
+            );
+            return;
+        }
+
+        const newQty = `${newVal}${unit}`;
+        try {
+            const response = await axios.patch(`${config.API_BASE_URL}/fridge/${id}/quantity`,
+                { quantity: newQty },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            setFridgeItems(prev => prev.map(item => item.id === id ? response.data : item));
+        } catch (error) {
+            console.error('수량 조절 실패:', error);
+        }
+    };
+
+    const resetForm = () => {
+        setNewItemName('');
+        setNewItemQuantity('');
+        setNewItemCategory('기타');
+        setNewItemExpiry('');
+        setIsEditMode(false);
+        setEditingItemId(null);
+    };
+
+    const openEditModal = (item) => {
+        setNewItemName(item.name);
+        setNewItemQuantity(item.quantity);
+        setNewItemCategory(item.category);
+        setNewItemExpiry(item.expiryDate);
+        setEditingItemId(item.id);
+        setIsEditMode(true);
+        setModalVisible(true);
+    };
+
+    const handleDeleteItem = async (id) => {
+        try {
+            await axios.delete(`${config.API_BASE_URL}/fridge/${id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setFridgeItems(prev => prev.filter(item => item.id !== id));
+        } catch (error) {
+            console.error('재료 삭제 실패:', error);
+            alert('재료 삭제에 실패했습니다.');
+        }
+    };
 
     const getExpiryColor = (daysLeft) => {
         if (daysLeft <= 2) return { text: '#DC2626', bg: '#FEF2F2', border: '#FECACA' }; // Red
@@ -26,49 +176,138 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
         return { text: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0' }; // Green
     };
 
-    const handleAddItem = () => {
-        if (!newItemName.trim()) return;
+    const handleScanReceipt = async () => {
+        const options = [
+            { text: '사진 촬영하기', icon: 'camera' },
+            { text: '앨범에서 가져오기', icon: 'images' },
+            { text: '취소', style: 'cancel' }
+        ];
 
-        const newItem = {
-            id: Date.now().toString(),
-            name: newItemName,
-            quantity: newItemQuantity || '1개',
-            category: newItemCategory,
-            expiryDate: newItemExpiry || '2026-01-31', // Default or need DatePicker
-            daysLeft: 7 // Mock calculation
+        if (Platform.OS === 'ios' || Platform.OS === 'android') {
+            const { Alert } = require('react-native');
+            Alert.alert(
+                '영수증 스캔',
+                '어떤 방식으로 영수증을 올리시겠어요?',
+                [
+                    { text: '사진 촬영', onPress: () => processImage('camera') },
+                    { text: '갤러리 선택', onPress: () => processImage('gallery') },
+                    { text: '취소', style: 'cancel' },
+                ]
+            );
+        } else {
+            processImage('gallery');
+        }
+    };
+
+    const processImage = async (type) => {
+        let result;
+        const pickerOptions = {
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            quality: 0.5,
+            base64: true,
         };
 
-        setFridgeItems(prev => [...prev, newItem]);
-        setModalVisible(false);
-        setNewItemName('');
-        setNewItemQuantity('');
+        if (type === 'camera') {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== 'granted') {
+                alert('카메라 권한이 필요합니다!');
+                return;
+            }
+            result = await ImagePicker.launchCameraAsync(pickerOptions);
+        } else {
+            result = await ImagePicker.launchImageLibraryAsync(pickerOptions);
+        }
+
+        if (!result.canceled && result.assets[0].base64) {
+            setScanning(true);
+            try {
+                const response = await axios.post(`${config.API_BASE_URL}/fridge/scan`, {
+                    image: result.assets[0].base64
+                }, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+
+                const scannedItems = response.data;
+
+                if (scannedItems.length === 0) {
+                    alert('영수증에서 식재료를 찾지 못했습니다.');
+                } else {
+                    for (const item of scannedItems) {
+                        const expiryDate = calculateExpiryDate(item.category || '기타');
+
+                        await axios.post(`${config.API_BASE_URL}/fridge`, {
+                            ...item,
+                            expiryDate: expiryDate
+                        }, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                    }
+                    await fetchFridgeItems();
+                    alert(`${scannedItems.length}개의 재료가 자동으로 등록되었습니다! 🍎`);
+                }
+            } catch (error) {
+                console.error('영수증 스캔 실패:', error);
+                alert('영수증 분석 중 오류가 발생했습니다.');
+            } finally {
+                setScanning(false);
+            }
+        }
     };
 
-    const handleDeleteItem = (id) => {
-        setFridgeItems(prev => prev.filter(item => item.id !== id));
-    };
+    const filteredItems = selectedCategory === '전체'
+        ? fridgeItems
+        : fridgeItems.filter(item => item.category === selectedCategory);
 
     return (
         <SafeAreaView style={styles.container}>
-            {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
                     <TouchableOpacity onPress={onToggleSidebar} style={styles.menuButton}>
-                        <Ionicons name="menu" size={24} color={colors.text} />
+                        <Ionicons name="menu" size={28} color={colors.text} />
                     </TouchableOpacity>
                     <View>
-                        <Text style={styles.headerTitle}>나의 냉장고</Text>
+                        <View style={styles.titleRow}>
+                            <Text style={styles.headerTitle}>나의 냉장고</Text>
+                            <TouchableOpacity
+                                onPress={() => setHelpModalVisible(true)}
+                                style={styles.helpIconButton}
+                            >
+                                <Ionicons name="help-circle-outline" size={18} color="#9CA3AF" />
+                            </TouchableOpacity>
+                        </View>
                         <Text style={styles.headerSubtitle}>신선한 재료 관리하기</Text>
                     </View>
                 </View>
-                <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => setModalVisible(true)}
-                >
-                    <Ionicons name="add" size={20} color="white" />
-                    <Text style={styles.addButtonText}>재료 추가</Text>
-                </TouchableOpacity>
+                <View style={styles.headerRight}>
+                    <TouchableOpacity
+                        style={styles.iconActionButton}
+                        onPress={handleScanReceipt}
+                        disabled={scanning}
+                    >
+                        <Ionicons name="scan-outline" size={22} color="#4B5563" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.primaryActionButton}
+                        onPress={() => {
+                            resetForm();
+                            setModalVisible(true);
+                        }}
+                    >
+                        <Ionicons name="add" size={22} color="white" />
+                    </TouchableOpacity>
+                </View>
             </View>
+
+            {/* Scanning Overlay */}
+            {
+                scanning && (
+                    <View style={styles.scanningOverlay}>
+                        <ActivityIndicator size="large" color={colors.primary} />
+                        <Text style={styles.scanningText}>AI가 영수증을 분석하고 있어요...</Text>
+                    </View>
+                )
+            }
 
             {/* Category Filter */}
             <View style={styles.categoryContainer}>
@@ -103,13 +342,19 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
                     <View style={[styles.statCard, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}>
                         <Text style={[styles.statLabel, { color: '#C2410C' }]}>유통기한 임박</Text>
                         <Text style={[styles.statValue, { color: '#EA580C' }]}>
-                            {fridgeItems.filter(i => i.daysLeft <= 5).length}
+                            {fridgeItems.filter(i => {
+                                const diff = Math.ceil((new Date(i.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
+                                return diff <= 5;
+                            }).length}
                         </Text>
                     </View>
                     <View style={[styles.statCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
                         <Text style={[styles.statLabel, { color: '#15803D' }]}>신선한 재료</Text>
                         <Text style={[styles.statValue, { color: '#16A34A' }]}>
-                            {fridgeItems.filter(i => i.daysLeft > 5).length}
+                            {fridgeItems.filter(i => {
+                                const diff = Math.ceil((new Date(i.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
+                                return diff > 5;
+                            }).length}
                         </Text>
                     </View>
                 </View>
@@ -117,17 +362,37 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
                 {/* Item Grid */}
                 <View style={styles.grid}>
                     {filteredItems.map(item => {
-                        const colors = getExpiryColor(item.daysLeft);
+                        const daysLeft = Math.ceil((new Date(item.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
+                        const expiryColors = getExpiryColor(daysLeft);
                         return (
                             <View key={item.id} style={styles.itemCard}>
                                 <View style={styles.itemHeader}>
-                                    <View>
-                                        <Text style={styles.itemName}>{item.name}</Text>
-                                        <Text style={styles.itemQuantity}>{item.quantity}</Text>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+                                        <View style={styles.quantityContainer}>
+                                            <TouchableOpacity
+                                                onPress={() => handleAdjustQuantity(item.id, item.quantity, -1)}
+                                                style={styles.qtyBtn}
+                                            >
+                                                <Ionicons name="remove-circle-outline" size={18} color="#6B7280" />
+                                            </TouchableOpacity>
+                                            <Text style={styles.itemQuantity}>{item.quantity}</Text>
+                                            <TouchableOpacity
+                                                onPress={() => handleAdjustQuantity(item.id, item.quantity, 1)}
+                                                style={styles.qtyBtn}
+                                            >
+                                                <Ionicons name="add-circle-outline" size={18} color="#6B7280" />
+                                            </TouchableOpacity>
+                                        </View>
                                     </View>
-                                    <TouchableOpacity onPress={() => handleDeleteItem(item.id)}>
-                                        <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                                    </TouchableOpacity>
+                                    <View style={styles.cardActions}>
+                                        <TouchableOpacity onPress={() => openEditModal(item)} style={{ marginRight: 8 }}>
+                                            <Ionicons name="create-outline" size={18} color="#4B5563" />
+                                        </TouchableOpacity>
+                                        <TouchableOpacity onPress={() => handleDeleteItem(item.id)}>
+                                            <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
 
                                 <View style={styles.tagRow}>
@@ -136,9 +401,16 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
                                     </View>
                                 </View>
 
-                                <View style={[styles.expiryTag, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-                                    <Ionicons name="time-outline" size={14} color={colors.text} />
-                                    <Text style={[styles.expiryText, { color: colors.text }]}>{item.daysLeft}일 남음</Text>
+                                <View style={[styles.expiryTag, { backgroundColor: expiryColors.bg, borderColor: expiryColors.border }]}>
+                                    <Ionicons name="time-outline" size={14} color={expiryColors.text} />
+                                    <Text style={[styles.expiryText, { color: expiryColors.text }]}>
+                                        {daysLeft < 0 ? '기한 만료' : daysLeft === 0 ? '오늘 만료' : `${daysLeft}일 남음`}
+                                    </Text>
+                                    {daysLeft <= 1 && daysLeft >= 0 && (
+                                        <View style={styles.alertBadge}>
+                                            <Text style={styles.alertBadgeText}>임박</Text>
+                                        </View>
+                                    )}
                                 </View>
                             </View>
                         );
@@ -153,16 +425,16 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
                 )}
             </ScrollView>
 
-            {/* Add Modal */}
+            {/* Add/Edit Modal */}
             <Modal
                 visible={modalVisible}
                 transparent
-                animationType="slide"
+                animationType="fade"
                 onRequestClose={() => setModalVisible(false)}
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>새로운 재료 추가</Text>
+                        <Text style={styles.modalTitle}>{isEditMode ? '재료 정보 수정' : '새로운 재료 추가'}</Text>
 
                         <Text style={styles.inputLabel}>이름</Text>
                         <TextInput
@@ -180,19 +452,96 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
                             onChangeText={setNewItemQuantity}
                         />
 
+                        <Text style={styles.inputLabel}>카테고리</Text>
+                        <View style={styles.categorySelectContainer}>
+                            {['채소', '과일', '육류', '유제품', '달걀', '기타'].map(cat => (
+                                <TouchableOpacity
+                                    key={cat}
+                                    style={[styles.categorySelectChip, newItemCategory === cat && styles.categorySelectChipActive]}
+                                    onPress={() => setNewItemCategory(cat)}
+                                >
+                                    <Text style={[styles.categorySelectText, newItemCategory === cat && styles.categorySelectTextActive]}>{cat}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        <Text style={styles.inputLabel}>유통기한 (YYYY-MM-DD)</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="2024-12-31"
+                            value={newItemExpiry}
+                            onChangeText={setNewItemExpiry}
+                        />
+
                         <View style={styles.modalActions}>
                             <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.modalCancel}>
                                 <Text style={styles.modalCancelText}>취소</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={handleAddItem} style={styles.modalAdd}>
-                                <Text style={styles.modalAddText}>추가하기</Text>
+                            <TouchableOpacity onPress={isEditMode ? handleUpdateItem : handleAddItem} style={styles.modalAdd}>
+                                <Text style={styles.modalAddText}>{isEditMode ? '수정 완료' : '추가하기'}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
                 </View>
             </Modal>
 
-        </SafeAreaView>
+            {/* Help Modal */}
+            <Modal
+                visible={helpModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setHelpModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.helpHeader}>
+                            <Ionicons name="information-circle-outline" size={24} color={colors.primary} />
+                            <Text style={styles.helpTitle}>냉장고 가이드</Text>
+                        </View>
+
+                        <Text style={styles.helpDesc}>영수증 스캔 시 카테고리에 따라 유통기한이 자동으로 설정됩니다.</Text>
+
+                        <View style={styles.ruleTable}>
+                            <View style={styles.ruleRow}>
+                                <Text style={styles.ruleLabel}>🍖 육류</Text>
+                                <Text style={styles.ruleValue}>+2일</Text>
+                            </View>
+                            <View style={styles.ruleRow}>
+                                <Text style={styles.ruleLabel}>🥬 채소</Text>
+                                <Text style={styles.ruleValue}>+5일</Text>
+                            </View>
+                            <View style={styles.ruleRow}>
+                                <Text style={styles.ruleLabel}>🍎 과일</Text>
+                                <Text style={styles.ruleValue}>+7일</Text>
+                            </View>
+                            <View style={styles.ruleRow}>
+                                <Text style={styles.ruleLabel}>🥛 유제품</Text>
+                                <Text style={styles.ruleValue}>+10일</Text>
+                            </View>
+                            <View style={styles.ruleRow}>
+                                <Text style={styles.ruleLabel}>🥚 달걀</Text>
+                                <Text style={styles.ruleValue}>+21일</Text>
+                            </View>
+                            <View style={styles.ruleRow}>
+                                <Text style={styles.ruleLabel}>📦 기타</Text>
+                                <Text style={styles.ruleValue}>+7일</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.helpTips}>
+                            <Text style={styles.tipText}>• ➕/➖ 버튼으로 수량을 쉽게 조절하세요.</Text>
+                            <Text style={styles.tipText}>• 연필/쓰레기통 아이콘으로 수정과 삭제 가능!</Text>
+                            <Text style={styles.tipText}>• 유통기한은 수정 모달에서 직접 변경 가능합니다.</Text>
+                        </View>
+
+                        <TouchableOpacity onPress={() => setHelpModalVisible(false)} style={styles.helpCloseBtn}>
+                            <Text style={styles.helpCloseBtnText}>확인</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+        </SafeAreaView >
     );
 }
 
@@ -220,27 +569,53 @@ const styles = StyleSheet.create({
         marginRight: 8,
     },
     headerTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
+        fontSize: 20,
+        fontWeight: '800',
         color: '#111827',
     },
-    headerSubtitle: {
-        fontSize: 12,
-        color: '#6B7280',
-    },
-    addButton: {
+    titleRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#3B82F6', // Blue like the web version
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
+        gap: 4,
+    },
+    helpIconButton: {
+        padding: 2,
+    },
+    headerSubtitle: {
+        fontSize: 13,
+        color: '#9CA3AF',
+        marginTop: 1,
+    },
+    headerRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    iconActionButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#F3F4F6',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    primaryActionButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#3B82F6',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#3B82F6',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 4,
     },
     addButtonText: {
-        color: 'white',
-        marginLeft: 4,
-        fontWeight: '600',
-        fontSize: 14,
+        display: 'none', // Text removed for cleaner look
     },
     categoryContainer: {
         backgroundColor: 'white',
@@ -421,5 +796,116 @@ const styles = StyleSheet.create({
     modalAddText: {
         color: 'white',
         fontWeight: 'bold',
+    },
+    quantityContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 4,
+        gap: 4,
+    },
+    qtyBtn: {
+        padding: 2,
+    },
+    cardActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    categorySelectContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 16,
+    },
+    categorySelectChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 15,
+        backgroundColor: '#F3F4F6',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    categorySelectChipActive: {
+        backgroundColor: '#3B82F6',
+        borderColor: '#3B82F6',
+    },
+    categorySelectText: {
+        fontSize: 12,
+        color: '#4B5563',
+    },
+    categorySelectTextActive: {
+        color: 'white',
+        fontWeight: 'bold',
+    },
+    alertBadge: {
+        backgroundColor: '#EF4444',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+        marginLeft: 6,
+    },
+    alertBadgeText: {
+        color: 'white',
+        fontSize: 10,
+        fontWeight: 'bold',
+    },
+    helpHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 12,
+        gap: 8,
+    },
+    helpTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#111827',
+    },
+    helpDesc: {
+        fontSize: 14,
+        color: '#4B5563',
+        textAlign: 'center',
+        marginBottom: 16,
+        lineHeight: 20,
+    },
+    ruleTable: {
+        backgroundColor: '#F9FAFB',
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 16,
+    },
+    ruleRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 6,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    ruleLabel: {
+        fontSize: 14,
+        color: '#374151',
+    },
+    ruleValue: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#3B82F6',
+    },
+    helpTips: {
+        marginBottom: 20,
+    },
+    tipText: {
+        fontSize: 12,
+        color: '#6B7280',
+        marginBottom: 4,
+    },
+    helpCloseBtn: {
+        backgroundColor: '#3B82F6',
+        paddingVertical: 12,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    helpCloseBtnText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 16,
     },
 });

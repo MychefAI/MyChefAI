@@ -1,6 +1,5 @@
-
-import React, { useState } from 'react';
-import { StyleSheet, View, StatusBar } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import axios from 'axios';
 import config from './src/config';
@@ -16,16 +15,35 @@ import RecipeDetailScreen from './src/screens/RecipeDetailScreen';
 import CommunityScreen from './src/screens/CommunityScreen';
 import CreatePostScreen from './src/screens/CreatePostScreen';
 import PostDetailScreen from './src/screens/PostDetailScreen';
+import LoadingScreen from './src/screens/LoadingScreen';
+
 import Sidebar from './src/components/Sidebar';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 
 function AppContent() {
   // Navigation State
   const [currentScreen, setCurrentScreen] = useState('chat'); // Default to AI Chat
-  const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [selectedPost, setSelectedPost] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { isLoggedIn, user } = useAuth(); // AuthContext 사용
+  const [isAppReady, setIsAppReady] = useState(false);
+  const { isLoggedIn, user, loading: authLoading } = useAuth(); // 인증 복구 상태 추가 및 User 정보
+
+  // Initial App Load Simulation
+  useEffect(() => {
+    // 앱 준비 확인 및 인증 복구 완료 대기
+    if (isAppReady && !authLoading) {
+      console.log('App is ready and Auth is restored');
+    }
+  }, [isAppReady, authLoading]);
+
+  // 애니메이션 효과를 위해 최소 2.5초는 로딩 화면 유지
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsAppReady(true);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
+
 
   // 📝 Record daily activity (attendance)
   React.useEffect(() => {
@@ -186,6 +204,10 @@ function AppContent() {
     }
   };
 
+  if (!isAppReady || authLoading) {
+    return <LoadingScreen />;
+  }
+
   return (
     <View style={styles.container}>
       <ExpoStatusBar style="auto" />
@@ -202,11 +224,15 @@ function AppContent() {
   );
 }
 
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
 

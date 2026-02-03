@@ -54,22 +54,33 @@ public class AuthController {
     @SuppressWarnings("unchecked")
     public ResponseEntity<?> loginKakao(@RequestBody com.mychefai.healthytable.dto.LoginRequestDTO request) {
         try {
+            System.out.println("Starting Kakao Login verification...");
             // 1. Verify Token with Kakao
             Map<String, Object> kakaoUser = oAuthService.verifyKakaoToken(request.getAccessToken());
+            System.out.println("Kakao User Info: " + kakaoUser);
 
             // 2. Extract User Info (Kakao structure is nested)
             Map<String, Object> kakaoAccount = (Map<String, Object>) kakaoUser.get("kakao_account");
+            if (kakaoAccount == null) {
+                throw new RuntimeException("kakao_account is null");
+            }
+
             Map<String, Object> profile = (Map<String, Object>) kakaoAccount.get("profile");
 
             String email = kakaoAccount.containsKey("email") ? (String) kakaoAccount.get("email")
                     : "kakao_" + kakaoUser.get("id");
-            String name = (String) profile.get("nickname");
+
+            String name = "Kakao User";
+            if (profile != null && profile.containsKey("nickname")) {
+                name = (String) profile.get("nickname");
+            }
 
             // 3. Find or Create User
+            String finalName = name;
             User user = userRepository.findByEmail(email).orElseGet(() -> {
                 User newUser = new User();
                 newUser.setEmail(email);
-                newUser.setName(name);
+                newUser.setName(finalName);
                 newUser.setCreatedAt(java.time.LocalDateTime.now());
                 newUser.setPassword("");
                 return userRepository.save(newUser);
@@ -82,6 +93,7 @@ public class AuthController {
                     "token", token,
                     "user", user));
         } catch (Exception e) {
+            System.err.println("Kakao Login Error: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(401).body("Invalid Kakao Token: " + e.getMessage());
         }

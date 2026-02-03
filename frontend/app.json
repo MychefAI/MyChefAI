@@ -15,17 +15,50 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mychefai.healthytable"
+      "bundleIdentifier": "com.mychefai.healthytable",
+      "scheme": "mychefai",
+      "infoPlist": {
+        "NSCameraUsageDescription": "영수증을 스캔하여 식재료를 자동으로 등록하기 위해 카메라 권한이 필요합니다.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "mychefai",
+              "com.googleusercontent.apps.1016750907889-ijfnf8k0pkksfupfshb8dugrjbeshglc",
+              "kakao1736625f341a36cf4cf31cb70dd03b5b"
+            ]
+          }
+        ],
+        "LSApplicationQueriesSchemes": [
+          "kakaokompassauth",
+          "storykompassauth",
+          "kakaolink"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.mychefai.healthytable"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "@react-native-seoul/kakao-login",
+        {
+          "kakaoAppKey": "1736625f341a36cf4cf31cb70dd03b5b"
+        }
+      ],
+      "expo-image-picker",
+      "expo-secure-store"
+    ]
   }
 }

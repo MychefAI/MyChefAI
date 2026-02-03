@@ -25,13 +25,19 @@ CREATE TABLE health_profiles (
 
 -- 3) MEAL_LOGS (1:N)
 CREATE TABLE meal_logs (
-  id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-  user_id     BIGINT NOT NULL,
-  record_date DATE NOT NULL,
-  breakfast   VARCHAR(255) NULL,
-  lunch       VARCHAR(255) NULL,
-  dinner      VARCHAR(255) NULL,
-  snacks      JSON NULL,
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id             BIGINT NOT NULL,
+  record_date         DATE NOT NULL,
+  breakfast           VARCHAR(255) NULL,
+  lunch               VARCHAR(255) NULL,
+  dinner              VARCHAR(255) NULL,
+  snacks              JSON NULL,
+  breakfast_calories  INT NULL,
+  lunch_calories      INT NULL,
+  dinner_calories     INT NULL,
+  is_ai_breakfast     BOOLEAN DEFAULT FALSE,
+  is_ai_lunch         BOOLEAN DEFAULT FALSE,
+  is_ai_dinner        BOOLEAN DEFAULT FALSE,
   CONSTRAINT fk_meal_user
     FOREIGN KEY (user_id) REFERENCES users(id)
     ON DELETE CASCADE,
@@ -52,6 +58,20 @@ CREATE TABLE fridge_items (
     ON DELETE CASCADE,
   INDEX idx_fridge_user (user_id),
   INDEX idx_fridge_expiry (expiry_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+-- 4.5) ACTIVITY_LOGS (1:N) - Daily user activity tracking
+CREATE TABLE activity_logs (
+  id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id            BIGINT NOT NULL,
+  activity_date      DATE NOT NULL,
+  has_ai_interaction BOOLEAN DEFAULT FALSE,
+  CONSTRAINT fk_activity_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE,
+  UNIQUE KEY uk_activity_user_date (user_id, activity_date),
+  INDEX idx_activity_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 

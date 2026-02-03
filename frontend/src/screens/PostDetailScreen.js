@@ -16,7 +16,10 @@ import axios from 'axios';
 import { colors } from '../theme/colors';
 import config from '../config';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 export default function PostDetailScreen({ post, user, onNavigate, onBack }) {
+    const insets = useSafeAreaInsets();
     const [postData, setPostData] = useState(post);
     const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState('');
@@ -211,7 +214,7 @@ export default function PostDetailScreen({ post, user, onNavigate, onBack }) {
     return (
         <View style={styles.container}>
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}>
                 <TouchableOpacity onPress={onBack}>
                     <Ionicons name="arrow-back" size={24} color={colors.text} />
                 </TouchableOpacity>
@@ -361,7 +364,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingTop: Platform.OS === 'android' ? 40 : 16,
         paddingBottom: 12,
         backgroundColor: colors.surface,
         borderBottomWidth: 1,

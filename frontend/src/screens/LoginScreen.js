@@ -11,10 +11,11 @@ const { width } = Dimensions.get('window');
 export default function LoginScreen({ onLogin, onGuest }) {
     const { login } = useAuth();
     const [loading, setLoading] = useState(false);
+    const [keepLoggedIn, setKeepLoggedIn] = useState(true); // Default to true for better UX
 
     const handleSocialLogin = async (type) => {
         setLoading(true);
-        const success = await login(type);
+        const success = await login(type, keepLoggedIn); // Pass the flag
         setLoading(false);
         if (success) {
             onLogin(); // Navigate to main screen
@@ -38,8 +39,23 @@ export default function LoginScreen({ onLogin, onGuest }) {
                         <View style={[styles.bubble, styles.bubble2]} />
                     </View>
 
-                    <Text style={styles.appName}>Type 1 셰프</Text>
-                    <Text style={styles.tagline}>내 손안의 AI 건강 요리사</Text>
+                    <Text style={styles.appName}>MyChefAI</Text>
+                    <Text style={styles.tagline}>당신을 위한 스마트 인공지능 셰프</Text>
+                </View>
+
+                {/* Auto Login Checkbox */}
+                <View style={styles.optionSection}>
+                    <TouchableOpacity
+                        style={styles.checkboxContainer}
+                        onPress={() => setKeepLoggedIn(!keepLoggedIn)}
+                        activeOpacity={0.7}
+                    >
+                        <View style={[styles.checkbox, keepLoggedIn && styles.checkboxChecked]}>
+                            {keepLoggedIn && <Ionicons name="checkmark" size={14} color="white" />}
+                        </View>
+                        <Text style={styles.checkboxLabel}>자동 로그인</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.optionHint}>앱을 닫아도 로그인이 유지됩니다</Text>
                 </View>
 
                 {/* Login Actions */}
@@ -199,4 +215,41 @@ const styles = StyleSheet.create({
         color: colors.textTertiary,
         fontSize: 13,
     },
+    // Options
+    optionSection: {
+        width: '100%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 20,
+        paddingHorizontal: 4,
+    },
+    checkboxContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    checkbox: {
+        width: 20,
+        height: 20,
+        borderRadius: 4,
+        borderWidth: 1.5,
+        borderColor: colors.borderHighlight,
+        marginRight: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'white',
+    },
+    checkboxChecked: {
+        backgroundColor: colors.primary,
+        borderColor: colors.primary,
+    },
+    checkboxLabel: {
+        fontSize: 14,
+        color: colors.textSecondary,
+        fontWeight: '500',
+    },
+    optionHint: {
+        fontSize: 11,
+        color: colors.textTertiary,
+    }
 });

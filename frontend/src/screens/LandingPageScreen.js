@@ -97,7 +97,7 @@ export default function LandingPageScreen({ onNavigate }) {
                         <Ionicons name="snow" size={120} color="#F0F9FF" style={styles.bgIconRight} />
 
                         <View style={styles.labelPillBlue}>
-                            <Text style={styles.labelTextBlue}>SMART ECONOMY</Text>
+                            <Text style={styles.labelTextBlue}>스마트 경제</Text>
                         </View>
                         <Text style={styles.cardTitle}>냉장고가 스스로{'\n'}식단을 관리하고 제안합니다.</Text>
                         <Text style={styles.cardDesc}>
@@ -129,7 +129,7 @@ export default function LandingPageScreen({ onNavigate }) {
                         <Ionicons name="heart" size={120} color="#FFF1F2" style={styles.bgIconLeft} />
 
                         <View style={styles.labelPillPink}>
-                            <Text style={styles.labelTextPink}>HEALTH SHIELD</Text>
+                            <Text style={styles.labelTextPink}>건강 주치의</Text>
                         </View>
                         <Text style={styles.cardTitle}>내 몸을 가장 잘 아는{'\n'}주방의 주치의.</Text>
                         <Text style={styles.cardDesc}>
@@ -164,7 +164,7 @@ export default function LandingPageScreen({ onNavigate }) {
                         <Ionicons name="people" size={120} color="#F0FDF4" style={styles.bgIconRight} />
 
                         <View style={styles.labelPillGreen}>
-                            <Text style={styles.labelTextGreen}>JOY OF COOKING</Text>
+                            <Text style={styles.labelTextGreen}>요리의 즐거움</Text>
                         </View>
                         <Text style={styles.cardTitle}>건강한 미식가들의{'\n'}생생한 식탁을 엿보다.</Text>
                         <Text style={styles.cardDesc}>

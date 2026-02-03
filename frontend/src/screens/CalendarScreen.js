@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 const WEEK_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, onToggleSidebar }) {
-    const { isLoggedIn } = useAuth();
+    const { isLoggedIn, token } = useAuth();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(null);
     const [showMealModal, setShowMealModal] = useState(false);
@@ -18,15 +18,22 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
 
     // Fetch meal logs and activity logs from backend
     useEffect(() => {
-        if (isLoggedIn) {
+        if (isLoggedIn && token) {
             fetchMealLogs();
             fetchActivityLogs();
         }
-    }, [isLoggedIn]);
+    }, [isLoggedIn, token]);
+
+
 
     const fetchActivityLogs = async () => {
+        if (!token) return;
         try {
-            const response = await axios.get(`${config.API_BASE_URL}/activities`);
+            const response = await axios.get(`${config.API_BASE_URL}/activities`, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
             const logs = response.data;
             const transformed = {};
             logs.forEach(log => {
@@ -39,9 +46,14 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
     };
 
     const fetchMealLogs = async () => {
+        if (!token) return;
         setLoading(true);
         try {
-            const response = await axios.get(`${config.API_BASE_URL}/meallogs`);
+            const response = await axios.get(`${config.API_BASE_URL}/meallogs`, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
             const logs = response.data;
 
             // Transform list to object with date keys
@@ -68,6 +80,7 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
             setLoading(false);
         }
     };
+
 
     // Helper functions
     const getCalendarDays = () => {

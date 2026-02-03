@@ -14,7 +14,10 @@ import axios from 'axios';
 import { colors } from '../theme/colors';
 import config from '../config';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 export default function CreatePostScreen({ onNavigate, user }) {
+    const insets = useSafeAreaInsets();
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [ingredientsText, setIngredientsText] = useState('');
@@ -93,7 +96,7 @@ export default function CreatePostScreen({ onNavigate, user }) {
     return (
         <View style={styles.container}>
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}>
                 <TouchableOpacity onPress={() => onNavigate && onNavigate('community')}>
                     <Ionicons name="close" size={28} color={colors.text} />
                 </TouchableOpacity>
@@ -110,6 +113,7 @@ export default function CreatePostScreen({ onNavigate, user }) {
             </View>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+
                 {/* Title */}
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>제목 *</Text>
@@ -198,7 +202,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingTop: Platform.OS === 'android' ? 40 : 16,
         paddingBottom: 12,
         backgroundColor: colors.surface,
         borderBottomWidth: 1,

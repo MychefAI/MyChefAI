@@ -30,6 +30,7 @@ public class GeminiService {
         // System Instruction (Persona)
         promptBuilder.append("System: 당신은 'MyChef AI'입니다. 친절하고 전문적인 셰프 페르소나를 유지하세요. ");
         promptBuilder.append("요리법, 식재료, 건강 식단에 대한 질문에 답변하고, 일상적인 대화도 자연스럽게 이어가세요. ");
+        promptBuilder.append("레시피를 추천하거나 음식에 대해 설명할 때는 반드시 1인분 칼로리 정보를 'XXXkcal' 형식으로 포함해주세요. ");
         promptBuilder.append("답변은 한국어로, 이모지를 적절히 사용하여 친근하게 해주세요.\n");
 
         // Append History
@@ -68,9 +69,53 @@ public class GeminiService {
                 "사용자가 가진 재료: [%s]. " +
                         "건강/상황 고려: [%s]. " +
                         "이 재료들을 활용해 만들 수 있는 맛있고 건강한 요리를 하나 추천해주세요. " +
-                        "요리 이름, 간단한 설명, 필요한 재료(계량 포함), 조리 순서를 알려주세요.",
+                        "요리 이름, 간단한 설명, 필요한 재료(계량 포함), 조리 순서를 알려주세요. " +
+                        "**중요: 반드시 이 요리의 1인분 총 칼로리를 계산하여 응답 마지막에 '총 XXXkcal' 형식으로 명시해주세요.**",
                 String.join(", ", ingredients),
                 healthContext);
         return getChatResponse(prompt, null);
+    }
+
+    public Mono<String> analyzeReceipt(String base64Image) {
+        System.out.println(">>> GeminiService: analyzeReceipt 시작");
+        System.out.println(">>> 이미지 크기: " + base64Image.length() + " bytes");
+
+        String prompt = "이 영수증 사진을 분석하여 구매한 식재료 목록을 추출해주세요. " +
+                "결과는 반드시 JSON 배열 형식으로만 답변해주세요. " +
+                "형식: [{\"name\": \"식재료명\", \"quantity\": \"수량\", \"category\": \"카테고리\"}] " +
+                "카테고리는 [채소, 과일, 육류, 유제품, 달걀, 기타] 중에서 가장 적절한 것을 선택하세요.";
+
+        GeminiDto.Part textPart = GeminiDto.Part.text(prompt);
+        GeminiDto.Part imagePart = GeminiDto.Part.image("image/jpeg", base64Image);
+        GeminiDto.Content content = new GeminiDto.Content(List.of(textPart, imagePart), "user");
+        GeminiDto.Request request = new GeminiDto.Request(List.of(content));
+
+        System.out.println(">>> Gemini API 호출 중...");
+        return webClient.post()
+                .uri(API_URL + "?key=" + apiKey)
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(GeminiDto.Response.class)
+                .map(response -> {
+                    System.out.println(">>> Gemini API 응답 받음!");
+                    if (response.getCandidates() != null && !response.getCandidates().isEmpty()) {
+                        String rawJson = response.getCandidates().get(0).getContent().getParts().get(0).getText();
+                        System.out.println(
+                                ">>> AI 원본 응답: " + rawJson.substring(0, Math.min(100, rawJson.length())) + "...");
+                        // AI output might contain markdown blocks like ```json ... ```
+                        String cleaned = rawJson.replaceAll("```json", "").replaceAll("```", "").trim();
+                        System.out.println(">>> 정제된 JSON: " + cleaned);
+                        return cleaned;
+                    }
+                    System.out.println(">>> Gemini 응답이 비어있음, 빈 배열 반환");
+                    return "[]";
+                })
+                .onErrorResume(e -> {
+                    System.err.println(">>> Gemini API 에러 발생!");
+                    System.err.println(">>> 에러 타입: " + e.getClass().getName());
+                    System.err.println(">>> 에러 메시지: " + e.getMessage());
+                    e.printStackTrace();
+                    return Mono.just("[]");
+                });
     }
 }

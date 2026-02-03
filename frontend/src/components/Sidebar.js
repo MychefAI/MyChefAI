@@ -14,21 +14,24 @@ const MENU_ITEMS = [
 
 import { useAuth } from '../context/AuthContext';
 
-export default function Sidebar({ isOpen, onClose, currentScreen, onNavigate }) {
-    const { user, isLoggedIn, logout } = useAuth();
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-    if (!isOpen) return null;
+export default function Sidebar({ isOpen, onClose, currentScreen, onNavigate }) {
+    const insets = useSafeAreaInsets();
+    const { user, isLoggedIn, logout } = useAuth();
+    // ...
 
     return (
         <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
             <View style={styles.overlay}>
                 <View style={styles.sidebar}>
-                    <View style={styles.header}>
+                    <View style={[styles.header, { marginTop: insets.top + 20 }]}>
+
                         <View style={styles.logoBox}>
                             <Ionicons name="restaurant" size={24} color="white" />
                         </View>
                         <View>
-                            <Text style={styles.title}>{isLoggedIn && user ? user.name : 'Type 1 셰프'}</Text>
+                            <Text style={styles.title}>{isLoggedIn && user ? user.name : 'MyChefAI'}</Text>
                             <Text style={styles.subtitle}>{isLoggedIn && user ? user.email : '당신만의 AI 요리사'}</Text>
                         </View>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -76,7 +79,7 @@ export default function Sidebar({ isOpen, onClose, currentScreen, onNavigate }) 
                     <View style={styles.footer}>
                         <TouchableOpacity style={[styles.accountButton, { marginBottom: 8 }]} onPress={() => { onNavigate('about'); onClose(); }}>
                             <Ionicons name="information-circle-outline" size={24} color="#4B5563" />
-                            <Text style={styles.accountText}>About MyChefAI</Text>
+                            <Text style={styles.accountText}>MyChefAI 정보</Text>
                             <Ionicons name="chevron-forward" size={16} color="#9CA3AF" style={{ marginLeft: 'auto' }} />
                         </TouchableOpacity>
                         {isLoggedIn ? (
@@ -125,7 +128,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 40,
-        marginTop: 40, // More top margin for safe area
     },
     logoBox: {
         width: 40,

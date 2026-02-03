@@ -26,9 +26,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/chat/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/recipes/**").permitAll() // For Home Screen
-                        .requestMatchers("/api/community/feed").permitAll() // Allow Feed Access
+                        // Community endpoints - allow all for now (authorization handled in service
+                        // layer)
+                        .requestMatchers("/api/community/**").permitAll()
                         // Require Authentication for others
-                        .requestMatchers("/api/community/**").authenticated()
                         .requestMatchers("/api/fridge/**").authenticated()
                         .anyRequest().permitAll() // Allow others for development ease
                 );

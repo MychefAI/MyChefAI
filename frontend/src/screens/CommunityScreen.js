@@ -6,9 +6,11 @@ import axios from 'axios';
 import { colors } from '../theme/colors';
 import config from '../config';
 
-export default function CommunityScreen({ onToggleSidebar, onNavigate }) {
-    const [activeTab, setActiveTab] = useState('discover'); // 'discover' or 'feed'
+export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
+    const [activeTab, setActiveTab] = useState('discover'); // 'discover', 'feed', or 'posts'
     const [feedItems, setFeedItems] = useState([]);
+    const [userPosts, setUserPosts] = useState([]);
+    const [popularPosts, setPopularPosts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
@@ -30,10 +32,29 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate }) {
         { id: 3, title: "연어 포케", rating: 4.6, time: 20, image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80" },
     ];
 
-    const popularRecipes = [
-        { id: 4, title: "마라탕 (저염 버전)", views: 1250, likes: 320, image: "https://images.unsplash.com/photo-1626045431776-8e0e6e7fb7da?w=400&q=80" },
-        { id: 5, title: "통밀 파스타", views: 980, likes: 210, image: "https://images.unsplash.com/photo-1551183053-bf91b1dca034?w=400&q=80" },
-    ];
+    // Fetch user posts
+    const fetchUserPosts = async () => {
+        try {
+            const response = await axios.get(
+                `${config.API_BASE_URL}/community/posts?currentUserId=${user?.id || ''}`
+            );
+            setUserPosts(response.data);
+        } catch (error) {
+            console.error('게시글 로딩 실패:', error);
+        }
+    };
+
+    // Fetch popular posts
+    const fetchPopularPosts = async () => {
+        try {
+            const response = await axios.get(
+                `${config.API_BASE_URL}/community/posts/popular?currentUserId=${user?.id || ''}&limit=5`
+            );
+            setPopularPosts(response.data);
+        } catch (error) {
+            console.error('인기 게시글 로딩 실패:', error);
+        }
+    };
 
     // Feed Data Fetching
     const fetchFeed = async () => {
@@ -48,13 +69,20 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate }) {
         }
     };
 
+    const fetchAll = async () => {
+        setLoading(true);
+        await Promise.all([fetchFeed(), fetchUserPosts(), fetchPopularPosts()]);
+        setLoading(false);
+        setRefreshing(false);
+    };
+
     useEffect(() => {
-        fetchFeed();
+        fetchAll();
     }, []);
 
     const onRefresh = () => {
         setRefreshing(true);
-        fetchFeed();
+        fetchAll();
     };
 
     // Helper Functions
@@ -94,6 +122,41 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate }) {
                             <Text style={styles.metaText}>{item.time}분</Text>
                         </>
                     )}
+                </View>
+            </View>
+        </TouchableOpacity>
+    );
+
+    const renderUserPostCard = (post) => (
+        <TouchableOpacity
+            key={post.id}
+            style={styles.postCard}
+            onPress={() => onNavigate && onNavigate('post-detail', post)}
+        >
+            {post.imageUrl && (
+                <Image source={{ uri: post.imageUrl }} style={styles.postCardImage} />
+            )}
+            <View style={styles.postCardContent}>
+                <View style={styles.postCardHeader}>
+                    <View style={styles.postAuthor}>
+                        <View style={styles.postAvatar}>
+                            <Ionicons name="person" size={16} color="white" />
+                        </View>
+                        <Text style={styles.authorName}>{post.userName}</Text>
+                    </View>
+                    <Text style={styles.postTime}>{getTimeAgo(post.createdAt)}</Text>
+                </View>
+                <Text style={styles.postCardTitle} numberOfLines={2}>{post.title}</Text>
+                <Text style={styles.postCardContent} numberOfLines={2}>{post.content}</Text>
+                <View style={styles.postCardFooter}>
+                    <View style={styles.postStat}>
+                        <Ionicons name="heart-outline" size={16} color={colors.textSecondary} />
+                        <Text style={styles.statText}>{post.likeCount || 0}</Text>
+                    </View>
+                    <View style={styles.postStat}>
+                        <Ionicons name="chatbubble-outline" size={16} color={colors.textSecondary} />
+                        <Text style={styles.statText}>{post.commentCount || 0}</Text>
+                    </View>
                 </View>
             </View>
         </TouchableOpacity>
@@ -157,6 +220,12 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate }) {
                     <Text style={[styles.tabText, activeTab === 'discover' && styles.activeTabText]}>🔥 추천</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
+                    style={[styles.tab, activeTab === 'posts' && styles.activeTab]}
+                    onPress={() => setActiveTab('posts')}
+                >
+                    <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>📝 게시글</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                     style={[styles.tab, activeTab === 'feed' && styles.activeTab]}
                     onPress={() => setActiveTab('feed')}
                 >
@@ -198,9 +267,63 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate }) {
                         <View style={styles.section}>
                             <Text style={styles.sectionTitle}>지금 뜨는 인기 요리 🔥</Text>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-                                {popularRecipes.map(item => renderRecipeCard(item, true))}
+                                {popularPosts.length > 0 ? (
+                                    popularPosts.map(post => (
+                                        <TouchableOpacity
+                                            key={post.id}
+                                            style={styles.card}
+                                            onPress={() => onNavigate && onNavigate('post-detail', post)}
+                                        >
+                                            <Image
+                                                source={{ uri: post.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80' }}
+                                                style={styles.cardImage}
+                                            />
+                                            <View style={styles.cardContent}>
+                                                <Text style={styles.cardTitle} numberOfLines={1}>{post.title}</Text>
+                                                <View style={styles.cardMeta}>
+                                                    <Ionicons name="heart" size={14} color={colors.error} />
+                                                    <Text style={styles.metaText}>{post.likeCount || 0}</Text>
+                                                    <Ionicons name="chatbubble" size={14} color={colors.textSecondary} style={{ marginLeft: 8 }} />
+                                                    <Text style={styles.metaText}>{post.commentCount || 0}</Text>
+                                                </View>
+                                            </View>
+                                        </TouchableOpacity>
+                                    ))
+                                ) : (
+                                    <Text style={styles.emptyText}>인기 게시글이 없습니다</Text>
+                                )}
                             </ScrollView>
                         </View>
+                    </View>
+                ) : activeTab === 'posts' ? (
+                    <View style={{ paddingBottom: 40 }}>
+                        {/* Create Post Button */}
+                        {user && (
+                            <View style={styles.createButtonContainer}>
+                                <TouchableOpacity
+                                    style={styles.createButton}
+                                    onPress={() => onNavigate && onNavigate('create-post')}
+                                >
+                                    <Ionicons name="add" size={24} color="white" />
+                                    <Text style={styles.createButtonText}>레시피 작성하기</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+
+                        {/* User Posts */}
+                        {loading && userPosts.length === 0 ? (
+                            <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+                        ) : userPosts.length === 0 ? (
+                            <View style={styles.emptyState}>
+                                <Ionicons name="document-text-outline" size={64} color={colors.textTertiary} />
+                                <Text style={styles.emptyTitle}>아직 게시글이 없어요</Text>
+                                {user && <Text style={styles.emptySubtitle}>첫 레시피를 공유해보세요!</Text>}
+                            </View>
+                        ) : (
+                            <View style={styles.postsContainer}>
+                                {userPosts.map(post => renderUserPostCard(post))}
+                            </View>
+                        )}
                     </View>
                 ) : (
                     <View>
@@ -423,5 +546,107 @@ const styles = StyleSheet.create({
         marginTop: 16,
         color: colors.textSecondary,
         fontSize: 16,
+        fontWeight: '600',
+    },
+    emptySubtitle: {
+        marginTop: 8,
+        color: colors.textTertiary,
+        fontSize: 14,
+    },
+    emptyText: {
+        color: colors.textSecondary,
+        fontSize: 14,
+        padding: 20,
+    },
+    // User Post Styles
+    createButtonContainer: {
+        padding: 16,
+    },
+    createButton: {
+        backgroundColor: colors.primary,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 14,
+        borderRadius: 12,
+        gap: 8,
+    },
+    createButtonText: {
+        color: 'white',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    postsContainer: {
+        paddingHorizontal: 16,
+        paddingTop: 8,
+    },
+    postCard: {
+        backgroundColor: colors.surface,
+        borderRadius: 12,
+        marginBottom: 16,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    postCardImage: {
+        width: '100%',
+        height: 180,
+        backgroundColor: colors.border,
+    },
+    postCardContent: {
+        padding: 16,
+    },
+    postCardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    postAuthor: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    postAvatar: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: colors.textTertiary,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 8,
+    },
+    authorName: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: colors.text,
+    },
+    postTime: {
+        fontSize: 12,
+        color: colors.textSecondary,
+    },
+    postCardTitle: {
+        fontSize: 17,
+        fontWeight: '700',
+        color: colors.text,
+        marginBottom: 8,
+    },
+    postCardContent: {
+        fontSize: 14,
+        lineHeight: 20,
+        color: colors.textSecondary,
+        marginBottom: 12,
+    },
+    postCardFooter: {
+        flexDirection: 'row',
+        gap: 16,
+    },
+    postStat: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    statText: {
+        fontSize: 13,
+        color: colors.textSecondary,
     },
 });

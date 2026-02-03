@@ -143,3 +143,59 @@ CREATE TABLE recommendations (
   INDEX idx_reco_user (user_id, created_at),
   INDEX idx_reco_recipe (recipe_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+-- 10) COMMUNITY_POSTS (사용자 작성 레시피 게시글)
+CREATE TABLE community_posts (
+  id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id     BIGINT NOT NULL,
+  title       VARCHAR(200) NOT NULL,
+  content     TEXT NOT NULL,
+  ingredients JSON NULL,
+  steps       JSON NULL,
+  image_url   VARCHAR(500) NULL,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_post_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE,
+  INDEX idx_post_user (user_id),
+  INDEX idx_post_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+-- 11) POST_COMMENTS (게시글 댓글)
+CREATE TABLE post_comments (
+  id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+  post_id    BIGINT NOT NULL,
+  user_id    BIGINT NOT NULL,
+  content    TEXT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_comment_post
+    FOREIGN KEY (post_id) REFERENCES community_posts(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_comment_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE,
+  INDEX idx_comment_post (post_id),
+  INDEX idx_comment_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+-- 12) POST_LIKES (게시글 좋아요)
+CREATE TABLE post_likes (
+  id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+  post_id    BIGINT NOT NULL,
+  user_id    BIGINT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_like_post
+    FOREIGN KEY (post_id) REFERENCES community_posts(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_like_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE,
+  UNIQUE KEY uk_post_user_like (post_id, user_id),
+  INDEX idx_like_post (post_id),
+  INDEX idx_like_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -12,6 +12,8 @@ import LoginScreen from './src/screens/LoginScreen';
 import LandingPageScreen from './src/screens/LandingPageScreen';
 import RecipeDetailScreen from './src/screens/RecipeDetailScreen';
 import CommunityScreen from './src/screens/CommunityScreen';
+import CreatePostScreen from './src/screens/CreatePostScreen';
+import PostDetailScreen from './src/screens/PostDetailScreen';
 import Sidebar from './src/components/Sidebar';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 
@@ -19,12 +21,13 @@ function AppContent() {
   // Navigation State
   const [currentScreen, setCurrentScreen] = useState('chat'); // Default to AI Chat
   const [selectedRecipe, setSelectedRecipe] = useState(null);
+  const [selectedPost, setSelectedPost] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { isLoggedIn } = useAuth(); // AuthContext 사용
+  const { isLoggedIn, user } = useAuth(); // AuthContext 사용
 
   const handleNavigate = (screen, data = null) => {
     // 🔒 보호된 라우트 체크
-    const protectedScreens = ['community', 'fridge', 'calendar', 'health'];
+    const protectedScreens = ['community', 'fridge', 'calendar', 'health', 'create-post'];
     // 'home' is removed from protected list as it's no longer a standalone screen
 
     if (protectedScreens.includes(screen) && !isLoggedIn) {
@@ -35,6 +38,9 @@ function AppContent() {
 
     if (screen === 'recipe-detail') {
       setSelectedRecipe(data);
+    }
+    if (screen === 'post-detail') {
+      setSelectedPost(data);
     }
     setCurrentScreen(screen);
   };
@@ -105,6 +111,24 @@ function AppContent() {
         return (
           <CommunityScreen
             onToggleSidebar={() => setIsSidebarOpen(true)}
+            onNavigate={handleNavigate}
+            user={user}
+          />
+        );
+      case 'create-post':
+        return (
+          <CreatePostScreen
+            onNavigate={handleNavigate}
+            user={user}
+          />
+        );
+      case 'post-detail':
+        return (
+          <PostDetailScreen
+            post={selectedPost}
+            user={user}
+            onNavigate={handleNavigate}
+            onBack={() => setCurrentScreen('community')}
           />
         );
       case 'calendar':

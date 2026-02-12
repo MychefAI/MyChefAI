@@ -15,6 +15,7 @@ import RecipeDetailScreen from './src/screens/RecipeDetailScreen';
 import CommunityScreen from './src/screens/CommunityScreen';
 import CreatePostScreen from './src/screens/CreatePostScreen';
 import PostDetailScreen from './src/screens/PostDetailScreen';
+import SearchScreen from './src/screens/SearchScreen';
 import LoadingScreen from './src/screens/LoadingScreen';
 
 import Sidebar from './src/components/Sidebar';
@@ -190,6 +191,14 @@ function AppContent() {
             setFridgeItems={setFridgeItems}
             isSidebarOpen={isSidebarOpen}
             onToggleSidebar={() => setIsSidebarOpen(true)}
+          />
+        );
+      case 'search':
+        return (
+          <SearchScreen
+            onBack={() => setCurrentScreen('community')}
+            onNavigate={handleNavigate}
+            user={user}
           />
         );
       case 'login':

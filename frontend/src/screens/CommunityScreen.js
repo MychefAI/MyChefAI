@@ -8,10 +8,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
     const insets = useSafeAreaInsets();
-    const [activeTab, setActiveTab] = useState('discover'); // 'discover', 'feed', or 'posts'
-    const [feedItems, setFeedItems] = useState([]);
-    const [userPosts, setUserPosts] = useState([]);
+    const [activeTab, setActiveTab] = useState('recommendation'); // 'recommendation' or 'feed'
+    const [aiRecommendations, setAiRecommendations] = useState([]);
     const [popularPosts, setPopularPosts] = useState([]);
+    const [popularTimeframe, setPopularTimeframe] = useState('weekly');
+    const [feedPosts, setFeedPosts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
@@ -33,23 +34,24 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
         { id: 3, title: "연어 포케", rating: 4.6, time: 20, image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80" },
     ];
 
-    // Fetch user posts
-    const fetchUserPosts = async () => {
+    // Fetch AI Recommendations
+    const fetchAIRecommendations = async () => {
+        if (!user?.id) return;
         try {
             const response = await axios.get(
-                `${config.API_BASE_URL}/community/posts?currentUserId=${user?.id || ''}`
+                `${config.API_BASE_URL}/community/recommendations?userId=${user.id}`
             );
-            setUserPosts(response.data);
+            setAiRecommendations(response.data);
         } catch (error) {
-            console.error('게시글 로딩 실패:', error);
+            console.error('AI 추천 로딩 실패:', error);
         }
     };
 
-    // Fetch popular posts
+    // Fetch popular posts (timeframe based)
     const fetchPopularPosts = async () => {
         try {
             const response = await axios.get(
-                `${config.API_BASE_URL}/community/posts/popular?currentUserId=${user?.id || ''}&limit=5`
+                `${config.API_BASE_URL}/community/posts/popular?currentUserId=${user?.id || ''}&limit=10&timeframe=${popularTimeframe}`
             );
             setPopularPosts(response.data);
         } catch (error) {
@@ -57,11 +59,13 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
         }
     };
 
-    // Feed Data Fetching
+    // Fetch Community Feed (User Posts)
     const fetchFeed = async () => {
         try {
-            const response = await axios.get(`${config.API_BASE_URL}/community/feed`);
-            setFeedItems(response.data);
+            const response = await axios.get(
+                `${config.API_BASE_URL}/community/posts?currentUserId=${user?.id || ''}`
+            );
+            setFeedPosts(response.data);
         } catch (error) {
             console.error('피드 로딩 실패:', error);
         } finally {
@@ -72,7 +76,7 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
 
     const fetchAll = async () => {
         setLoading(true);
-        await Promise.all([fetchFeed(), fetchUserPosts(), fetchPopularPosts()]);
+        await Promise.all([fetchAIRecommendations(), fetchPopularPosts(), fetchFeed()]);
         setLoading(false);
         setRefreshing(false);
     };
@@ -215,22 +219,16 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
             {/* Tabs */}
             <View style={styles.tabContainer}>
                 <TouchableOpacity
-                    style={[styles.tab, activeTab === 'discover' && styles.activeTab]}
-                    onPress={() => setActiveTab('discover')}
+                    style={[styles.tab, activeTab === 'recommendation' && styles.activeTab]}
+                    onPress={() => setActiveTab('recommendation')}
                 >
-                    <Text style={[styles.tabText, activeTab === 'discover' && styles.activeTabText]}>🔥 추천</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.tab, activeTab === 'posts' && styles.activeTab]}
-                    onPress={() => setActiveTab('posts')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>📝 게시글</Text>
+                    <Text style={[styles.tabText, activeTab === 'recommendation' && styles.activeTabText]}>✨ 추천</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={[styles.tab, activeTab === 'feed' && styles.activeTab]}
                     onPress={() => setActiveTab('feed')}
                 >
-                    <Text style={[styles.tabText, activeTab === 'feed' && styles.activeTabText]}>👥 피드</Text>
+                    <Text style={[styles.tabText, activeTab === 'feed' && styles.activeTabText]}>📱 피드</Text>
                 </TouchableOpacity>
             </View>
 
@@ -240,33 +238,58 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
                 showsVerticalScrollIndicator={false}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             >
-                {activeTab === 'discover' ? (
+                {activeTab === 'recommendation' ? (
                     <View style={{ paddingBottom: 40 }}>
-                        {/* Hero */}
+                        {/* AI Section */}
                         <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>오늘의 AI 추천 👨‍🍳</Text>
-                            <TouchableOpacity style={styles.heroCard} onPress={() => onNavigate && onNavigate('recipe-detail', featuredRecipe)}>
-                                <Image source={{ uri: featuredRecipe.image }} style={styles.heroImage} />
-                                <View style={styles.heroOverlay}>
-                                    <View style={styles.heroBadge}>
-                                        <Text style={styles.heroBadgeText}>AI Pick</Text>
-                                    </View>
-                                    <Text style={styles.heroTitle}>{featuredRecipe.title}</Text>
-                                    <Text style={styles.heroDesc}>{featuredRecipe.description}</Text>
-                                </View>
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Lists */}
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>맞춤 추천 레시피</Text>
+                            <View style={styles.sectionHeader}>
+                                <Text style={styles.sectionTitle}>맞춤 추천 레시피 (AI PICK) 👨‍🍳</Text>
+                            </View>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-                                {recommendedRecipes.map(item => renderRecipeCard(item))}
+                                {aiRecommendations.length > 0 ? (
+                                    aiRecommendations.map(reco => (
+                                        <TouchableOpacity
+                                            key={reco.id}
+                                            style={[styles.card, { width: 200 }]}
+                                            onPress={() => onNavigate && onNavigate('recipe-detail', { id: reco.recipeId })}
+                                        >
+                                            <Image source={{ uri: reco.imageUrl || 'https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=400&q=80' }} style={[styles.cardImage, { height: 120 }]} />
+                                            <View style={styles.cardContent}>
+                                                <View style={styles.aiBadge}>
+                                                    <Text style={styles.aiBadgeText}>AI Score: {Math.round(reco.score)}</Text>
+                                                </View>
+                                                <Text style={styles.cardTitle} numberOfLines={1}>{reco.title}</Text>
+                                                <Text style={styles.recoReason} numberOfLines={2}>{reco.reason}</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                    ))
+                                ) : (
+                                    <View style={styles.emptySmall}>
+                                        <Text style={styles.emptyText}>냉장고 재료를 추가해보세요!</Text>
+                                    </View>
+                                )}
                             </ScrollView>
                         </View>
 
+                        {/* Popular Section */}
                         <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>지금 뜨는 인기 요리 🔥</Text>
+                            <View style={styles.sectionHeader}>
+                                <Text style={styles.sectionTitle}>인기 요리 🔥</Text>
+                                <View style={styles.timeframeContainer}>
+                                    {['daily', 'weekly', 'monthly'].map(tf => (
+                                        <TouchableOpacity
+                                            key={tf}
+                                            onPress={() => { setPopularTimeframe(tf); fetchPopularPosts(); }}
+                                            style={[styles.tfButton, popularTimeframe === tf && styles.tfButtonActive]}
+                                        >
+                                            <Text style={[styles.tfText, popularTimeframe === tf && styles.tfTextActive]}>
+                                                {tf === 'daily' ? '일간' : tf === 'weekly' ? '주간' : '월간'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
                                 {popularPosts.length > 0 ? (
                                     popularPosts.map(post => (
@@ -291,52 +314,38 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
                                         </TouchableOpacity>
                                     ))
                                 ) : (
-                                    <Text style={styles.emptyText}>인기 게시글이 없습니다</Text>
+                                    <Text style={styles.emptyText}>게시글이 없습니다</Text>
                                 )}
                             </ScrollView>
                         </View>
                     </View>
-                ) : activeTab === 'posts' ? (
+                ) : (
                     <View style={{ paddingBottom: 40 }}>
-                        {/* Create Post Button */}
-                        {user && (
-                            <View style={styles.createButtonContainer}>
-                                <TouchableOpacity
-                                    style={styles.createButton}
-                                    onPress={() => onNavigate && onNavigate('create-post')}
-                                >
-                                    <Ionicons name="add" size={24} color="white" />
-                                    <Text style={styles.createButtonText}>레시피 작성하기</Text>
-                                </TouchableOpacity>
-                            </View>
-                        )}
+                        {/* Feed Tab (SNS Style) */}
+                        <View style={styles.createPostContainer}>
+                            <TouchableOpacity
+                                style={styles.createPostButton}
+                                onPress={() => onNavigate && onNavigate('create-post')}
+                            >
+                                <View style={styles.fakeInput}>
+                                    <Text style={styles.fakeInputText}>나만의 레시피를 공유해보세요!</Text>
+                                </View>
+                                <Ionicons name="camera" size={24} color={colors.primary} />
+                            </TouchableOpacity>
+                        </View>
 
-                        {/* User Posts */}
-                        {loading && userPosts.length === 0 ? (
+                        {loading && feedPosts.length === 0 ? (
                             <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
-                        ) : userPosts.length === 0 ? (
+                        ) : feedPosts.length === 0 ? (
                             <View style={styles.emptyState}>
-                                <Ionicons name="document-text-outline" size={64} color={colors.textTertiary} />
-                                <Text style={styles.emptyTitle}>아직 게시글이 없어요</Text>
-                                {user && <Text style={styles.emptySubtitle}>첫 레시피를 공유해보세요!</Text>}
+                                <Ionicons name="people-outline" size={64} color={colors.textTertiary} />
+                                <Text style={styles.emptyTitle}>피드가 비어있어요</Text>
+                                <Text style={styles.emptySubtitle}>첫 번째 소식을 전해보세요!</Text>
                             </View>
                         ) : (
                             <View style={styles.postsContainer}>
-                                {userPosts.map(post => renderUserPostCard(post))}
+                                {feedPosts.map(post => renderUserPostCard(post))}
                             </View>
-                        )}
-                    </View>
-                ) : (
-                    <View>
-                        {loading && feedItems.length === 0 ? (
-                            <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
-                        ) : feedItems.length === 0 ? (
-                            <View style={styles.emptyState}>
-                                <Ionicons name="people-outline" size={64} color={colors.textTertiary} />
-                                <Text style={styles.emptyTitle}>아직 공유된 레시피가 없어요</Text>
-                            </View>
-                        ) : (
-                            feedItems.map((item) => renderFeedItem(item))
                         )}
                     </View>
                 )}
@@ -404,6 +413,11 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         color: colors.text,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         marginBottom: 12,
     },
     horizontalList: {
@@ -478,6 +492,86 @@ const styles = StyleSheet.create({
         fontSize: 11,
         color: colors.textSecondary,
         marginLeft: 4,
+    },
+    aiBadge: {
+        backgroundColor: colors.primary + '20',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+        alignSelf: 'flex-start',
+        marginBottom: 6,
+    },
+    aiBadgeText: {
+        color: colors.primary,
+        fontSize: 10,
+        fontWeight: 'bold',
+    },
+    recoReason: {
+        fontSize: 11,
+        color: colors.textSecondary,
+        marginTop: 4,
+        lineHeight: 16,
+    },
+    timeframeContainer: {
+        flexDirection: 'row',
+        backgroundColor: colors.border + '30',
+        borderRadius: 12,
+        padding: 2,
+    },
+    tfButton: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 10,
+    },
+    tfButtonActive: {
+        backgroundColor: 'white',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    tfText: {
+        fontSize: 11,
+        color: colors.textSecondary,
+        fontWeight: '600',
+    },
+    tfTextActive: {
+        color: colors.primary,
+        fontWeight: 'bold',
+    },
+    emptySmall: {
+        width: 150,
+        height: 100,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: colors.border + '10',
+        borderRadius: 16,
+        borderStyle: 'dashed',
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    createPostContainer: {
+        padding: 16,
+        backgroundColor: 'white',
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border + '50',
+    },
+    createPostButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.background,
+        borderRadius: 20,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        gap: 12,
+    },
+    fakeInput: {
+        flex: 1,
+    },
+    fakeInputText: {
+        color: colors.textSecondary,
+        fontSize: 14,
     },
     feedCard: {
         backgroundColor: 'white',

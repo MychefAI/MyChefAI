@@ -4,6 +4,8 @@ import com.mychefai.healthytable.dto.*;
 import com.mychefai.healthytable.service.CommunityService;
 import com.mychefai.healthytable.service.CommunityPostService;
 import com.mychefai.healthytable.service.PostCommentService;
+import com.mychefai.healthytable.service.RecommendationService;
+import com.mychefai.healthytable.dto.RecommendationDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +22,7 @@ public class CommunityController {
     private final CommunityService communityService;
     private final CommunityPostService communityPostService;
     private final PostCommentService postCommentService;
+    private final RecommendationService recommendationService;
 
     // ========== 기존 레시피 공유 기능 ==========
     @GetMapping("/feed")
@@ -35,6 +38,13 @@ public class CommunityController {
                 request.getMessage(),
                 request.getVisibility());
         return ResponseEntity.ok("레시피가 공유되었습니다.");
+    }
+
+    @GetMapping("/recommendations")
+    public ResponseEntity<List<RecommendationDTO>> getRecommendations(
+            @RequestParam Long userId) {
+        List<RecommendationDTO> recommendations = recommendationService.getRecommendations(userId);
+        return ResponseEntity.ok(recommendations);
     }
 
     // ========== 사용자 게시글 기능 ==========
@@ -55,8 +65,9 @@ public class CommunityController {
     @GetMapping("/posts/popular")
     public ResponseEntity<List<CommunityPostDTO>> getPopularPosts(
             @RequestParam(required = false) Long currentUserId,
-            @RequestParam(defaultValue = "10") int limit) {
-        List<CommunityPostDTO> posts = communityPostService.getPopularPosts(currentUserId, limit);
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(required = false) String timeframe) {
+        List<CommunityPostDTO> posts = communityPostService.getPopularPosts(currentUserId, limit, timeframe);
         return ResponseEntity.ok(posts);
     }
 
@@ -69,6 +80,17 @@ public class CommunityController {
             @RequestParam(required = false) Long currentUserId) {
         CommunityPostDTO post = communityPostService.getPostById(postId, currentUserId);
         return ResponseEntity.ok(post);
+    }
+
+    /**
+     * 게시글 검색
+     */
+    @GetMapping("/posts/search")
+    public ResponseEntity<List<CommunityPostDTO>> searchPosts(
+            @RequestParam String keyword,
+            @RequestParam(required = false) Long currentUserId) {
+        List<CommunityPostDTO> posts = communityPostService.searchPosts(keyword, currentUserId);
+        return ResponseEntity.ok(posts);
     }
 
     /**

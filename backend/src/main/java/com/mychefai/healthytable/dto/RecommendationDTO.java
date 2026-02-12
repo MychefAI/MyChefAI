@@ -4,16 +4,15 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class UpdatePostRequestDTO {
+public class RecommendationDTO {
+    private Long id;
+    private Long recipeId;
     private String title;
-    private String content;
-    private List<String> ingredients;
-    private List<String> steps;
-    private List<String> tags;
+    private String description;
     private String imageUrl;
+    private Double score;
+    private String reason;
 }

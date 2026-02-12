@@ -35,6 +35,10 @@ public class CommunityPost {
     @Column(columnDefinition = "JSON")
     private List<String> steps;
 
+    @Convert(converter = JsonStringListConverter.class)
+    @Column(columnDefinition = "JSON")
+    private List<String> tags;
+
     @Column(name = "image_url", length = 500)
     private String imageUrl;
 

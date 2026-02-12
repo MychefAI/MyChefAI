@@ -7,8 +7,11 @@ import {
     TextInput,
     TouchableOpacity,
     Platform,
-    Alert
+    Alert,
+    Image,
+    ActivityIndicator
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { colors } from '../theme/colors';
@@ -23,7 +26,53 @@ export default function CreatePostScreen({ onNavigate, user }) {
     const [ingredientsText, setIngredientsText] = useState('');
     const [stepsText, setStepsText] = useState('');
     const [imageUrl, setImageUrl] = useState('');
+    const [selectedTags, setSelectedTags] = useState([]);
     const [submitting, setSubmitting] = useState(false);
+
+    const PREDEFINED_TAGS = ['한식', '중식', '일식', '양식', '비건', '다이어트', '디저트', '안주', '자취요리', '간편식'];
+
+    const pickImage = async (useCamera = false) => {
+        let result;
+        const options = {
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 0.8,
+        };
+
+        try {
+            if (useCamera) {
+                const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                if (status !== 'granted') {
+                    Alert.alert('권한 필요', '카메라 접근 권한이 필요합니다.');
+                    return;
+                }
+                result = await ImagePicker.launchCameraAsync(options);
+            } else {
+                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (status !== 'granted') {
+                    Alert.alert('권한 필요', '갤러리 접근 권한이 필요합니다.');
+                    return;
+                }
+                result = await ImagePicker.launchImageLibraryAsync(options);
+            }
+
+            if (!result.canceled) {
+                setImageUrl(result.assets[0].uri);
+            }
+        } catch (error) {
+            console.error('이미지 선택 오류:', error);
+            Alert.alert('오류', '이미지를 선택하는 중 오류가 발생했습니다.');
+        }
+    };
+
+    const toggleTag = (tag) => {
+        if (selectedTags.includes(tag)) {
+            setSelectedTags(selectedTags.filter(t => t !== tag));
+        } else {
+            setSelectedTags([...selectedTags, tag]);
+        }
+    };
 
     const handleSubmit = async () => {
         if (!title.trim()) {
@@ -53,6 +102,7 @@ export default function CreatePostScreen({ onNavigate, user }) {
                 content: content.trim(),
                 ingredients: ingredients.length > 0 ? ingredients : null,
                 steps: steps.length > 0 ? steps : null,
+                tags: selectedTags,
                 imageUrl: imageUrl.trim() || null
             });
 
@@ -62,6 +112,7 @@ export default function CreatePostScreen({ onNavigate, user }) {
                 content: content.trim(),
                 ingredients: ingredients.length > 0 ? ingredients : null,
                 steps: steps.length > 0 ? steps : null,
+                tags: selectedTags,
                 imageUrl: imageUrl.trim() || null
             });
 
@@ -173,9 +224,60 @@ export default function CreatePostScreen({ onNavigate, user }) {
                     />
                 </View>
 
-                {/* Image URL */}
+                {/* Image Selection */}
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>이미지 URL (선택)</Text>
+                    <Text style={styles.label}>사진 (선택)</Text>
+                    <View style={styles.imagePickerContainer}>
+                        {imageUrl ? (
+                            <View style={styles.selectedImageContainer}>
+                                <Image source={{ uri: imageUrl }} style={styles.selectedImage} />
+                                <TouchableOpacity
+                                    style={styles.removeImageButton}
+                                    onPress={() => setImageUrl('')}
+                                >
+                                    <Ionicons name="close-circle" size={24} color={colors.error} />
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <View style={styles.imagePickerButtons}>
+                                <TouchableOpacity style={styles.pickerButton} onPress={() => pickImage(false)}>
+                                    <Ionicons name="images-outline" size={32} color={colors.textSecondary} />
+                                    <Text style={styles.pickerButtonText}>갤러리</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.pickerButton} onPress={() => pickImage(true)}>
+                                    <Ionicons name="camera-outline" size={32} color={colors.textSecondary} />
+                                    <Text style={styles.pickerButtonText}>카메라</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
+                </View>
+
+                {/* Tags */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.label}>태그 선택</Text>
+                    <View style={styles.tagContainer}>
+                        {PREDEFINED_TAGS.map(tag => (
+                            <TouchableOpacity
+                                key={tag}
+                                style={[
+                                    styles.tagChip,
+                                    selectedTags.includes(tag) && styles.tagChipActive
+                                ]}
+                                onPress={() => toggleTag(tag)}
+                            >
+                                <Text style={[
+                                    styles.tagText,
+                                    selectedTags.includes(tag) && styles.tagTextActive
+                                ]}>#{tag}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+
+                {/* Image URL fallback */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.label}>이미지 URL 직접 입력 (선택)</Text>
                     <TextInput
                         style={styles.input}
                         placeholder="https://example.com/image.jpg"
@@ -252,5 +354,70 @@ const styles = StyleSheet.create({
     },
     textArea: {
         minHeight: 100,
+    },
+    imagePickerContainer: {
+        marginTop: 8,
+    },
+    imagePickerButtons: {
+        flexDirection: 'row',
+        gap: 16,
+    },
+    pickerButton: {
+        flex: 1,
+        height: 100,
+        backgroundColor: colors.surface,
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderStyle: 'dashed',
+    },
+    pickerButtonText: {
+        marginTop: 4,
+        fontSize: 12,
+        color: colors.textSecondary,
+    },
+    selectedImageContainer: {
+        position: 'relative',
+        width: '100%',
+        height: 200,
+    },
+    selectedImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 12,
+    },
+    removeImageButton: {
+        position: 'absolute',
+        top: -10,
+        right: -10,
+        backgroundColor: 'white',
+        borderRadius: 12,
+    },
+    tagContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    tagChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        backgroundColor: colors.background,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    tagChipActive: {
+        backgroundColor: colors.primary + '20',
+        borderColor: colors.primary,
+    },
+    tagText: {
+        fontSize: 13,
+        color: colors.textSecondary,
+    },
+    tagTextActive: {
+        color: colors.primary,
+        fontWeight: 'bold',
     },
 });

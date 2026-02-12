@@ -35,12 +35,38 @@ public class CommunityPostService {
     }
 
     /**
-     * 인기 게시글 조회 (좋아요 수 기준)
+     * 인기 게시글 조회 (좋아요 수 기준 + 기간 필터)
+     */
+    public List<CommunityPostDTO> getPopularPosts(Long currentUserId, int limit, String timeframe) {
+        List<CommunityPost> posts;
+        java.time.LocalDateTime since;
+
+        if ("daily".equalsIgnoreCase(timeframe)) {
+            since = java.time.LocalDateTime.now().minusDays(1);
+        } else if ("weekly".equalsIgnoreCase(timeframe)) {
+            since = java.time.LocalDateTime.now().minusWeeks(1);
+        } else if ("monthly".equalsIgnoreCase(timeframe)) {
+            since = java.time.LocalDateTime.now().minusMonths(1);
+        } else {
+            // 기본값: 전체 기간 (최근 1년 정도나 전체 최신순)
+            return getPopularPosts(currentUserId, limit);
+        }
+
+        posts = postRepository.findByCreatedAtAfterOrderByCreatedAtDesc(since);
+
+        // 좋아요 수로 정렬
+        List<CommunityPostDTO> dtos = convertToDTO(posts, currentUserId);
+        return dtos.stream()
+                .sorted((a, b) -> Long.compare(b.getLikeCount(), a.getLikeCount()))
+                .limit(limit)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 기존 인기 게시글 조회 (전체 기간)
      */
     public List<CommunityPostDTO> getPopularPosts(Long currentUserId, int limit) {
         List<CommunityPost> allPosts = postRepository.findAllByOrderByCreatedAtDesc();
-
-        // 좋아요 수로 정렬
         List<CommunityPostDTO> dtos = convertToDTO(allPosts, currentUserId);
         return dtos.stream()
                 .sorted((a, b) -> Long.compare(b.getLikeCount(), a.getLikeCount()))
@@ -70,6 +96,7 @@ public class CommunityPostService {
         post.setContent(request.getContent());
         post.setIngredients(request.getIngredients());
         post.setSteps(request.getSteps());
+        post.setTags(request.getTags());
         post.setImageUrl(request.getImageUrl());
 
         return postRepository.save(post);
@@ -92,6 +119,7 @@ public class CommunityPostService {
         post.setContent(request.getContent());
         post.setIngredients(request.getIngredients());
         post.setSteps(request.getSteps());
+        post.setTags(request.getTags());
         post.setImageUrl(request.getImageUrl());
 
         return postRepository.save(post);
@@ -178,6 +206,7 @@ public class CommunityPostService {
                     post.getContent(),
                     post.getIngredients(),
                     post.getSteps(),
+                    post.getTags(),
                     post.getImageUrl(),
                     likeCount,
                     commentCount,
@@ -185,5 +214,17 @@ public class CommunityPostService {
                     post.getCreatedAt(),
                     post.getUpdatedAt());
         }).collect(Collectors.toList());
+    }
+
+    /**
+     * 게시글 검색 (제목, 내용)
+     */
+    public List<CommunityPostDTO> searchPosts(String keyword, Long currentUserId) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return getAllPosts(currentUserId);
+        }
+        List<CommunityPost> posts = postRepository.findByTitleContainingOrContentContainingOrderByCreatedAtDesc(keyword,
+                keyword);
+        return convertToDTO(posts, currentUserId);
     }
 }

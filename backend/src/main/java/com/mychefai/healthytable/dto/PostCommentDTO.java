@@ -13,6 +13,7 @@ public class PostCommentDTO {
     private Long id;
     private Long postId;
     private Long userId;
+    private Long parentId;
     private String userName;
     private String content;
     private LocalDateTime createdAt;

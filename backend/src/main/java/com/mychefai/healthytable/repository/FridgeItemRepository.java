@@ -9,4 +9,6 @@ import java.util.List;
 @Repository
 public interface FridgeItemRepository extends JpaRepository<FridgeItem, Long> {
     List<FridgeItem> findByUserIdOrderByExpiryDate(Long userId);
+
+    List<FridgeItem> findByUserId(Long userId);
 }

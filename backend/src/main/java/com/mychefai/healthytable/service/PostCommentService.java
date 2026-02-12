@@ -48,6 +48,7 @@ public class PostCommentService {
                     comment.getId(),
                     comment.getPostId(),
                     comment.getUserId(),
+                    comment.getParentId(),
                     user != null ? user.getName() : "알 수 없음",
                     comment.getContent(),
                     comment.getCreatedAt(),
@@ -68,6 +69,7 @@ public class PostCommentService {
         PostComment comment = new PostComment();
         comment.setPostId(postId);
         comment.setUserId(request.getUserId());
+        comment.setParentId(request.getParentId());
         comment.setContent(request.getContent());
 
         return commentRepository.save(comment);

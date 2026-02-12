@@ -173,6 +173,7 @@ CREATE TABLE community_posts (
   content     TEXT NOT NULL,
   ingredients JSON NULL,
   steps       JSON NULL,
+  tags        JSON NULL,
   image_url   VARCHAR(500) NULL,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -189,6 +190,7 @@ CREATE TABLE post_comments (
   id         BIGINT AUTO_INCREMENT PRIMARY KEY,
   post_id    BIGINT NOT NULL,
   user_id    BIGINT NOT NULL,
+  parent_id  BIGINT NULL,
   content    TEXT NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -198,8 +200,12 @@ CREATE TABLE post_comments (
   CONSTRAINT fk_comment_user
     FOREIGN KEY (user_id) REFERENCES users(id)
     ON DELETE CASCADE,
+  CONSTRAINT fk_comment_parent
+    FOREIGN KEY (parent_id) REFERENCES post_comments(id)
+    ON DELETE CASCADE,
   INDEX idx_comment_post (post_id),
-  INDEX idx_comment_user (user_id)
+  INDEX idx_comment_user (user_id),
+  INDEX idx_comment_parent (parent_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 

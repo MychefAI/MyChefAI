@@ -56,9 +56,10 @@ export const AuthProvider = ({ children }) => {
     // Google Login Request Setup
     const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
         ...GOOGLE_CLIENT_IDS,
-        redirectUri: Platform.select({
-            ios: `com.googleusercontent.apps.1016750907889-ijfnf8k0pkksfupfshb8dugrjbeshglc:/oauthredirect`,
-            default: AuthSession.makeRedirectUri({ scheme: 'mychefai' }),
+        redirectUri: AuthSession.makeRedirectUri({
+            scheme: 'mychefai',
+            // For development, especially on web, this helps resolve to localhost:PORT
+            preferLocalhost: true,
         }),
     });
 

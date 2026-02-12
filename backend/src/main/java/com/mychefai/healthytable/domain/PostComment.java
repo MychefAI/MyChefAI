@@ -23,6 +23,9 @@ public class PostComment {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    @Column(name = "parent_id")
+    private Long parentId;
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 

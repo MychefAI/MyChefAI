@@ -25,6 +25,7 @@ export default function PostDetailScreen({ post, user, onNavigate, onBack }) {
     const [newComment, setNewComment] = useState('');
     const [loading, setLoading] = useState(false);
     const [submittingComment, setSubmittingComment] = useState(false);
+    const [replyingTo, setReplyingTo] = useState(null); // { id: Long, userName: String }
 
     useEffect(() => {
         loadPostDetails();
@@ -80,10 +81,22 @@ export default function PostDetailScreen({ post, user, onNavigate, onBack }) {
             return;
         }
 
+
         if (!newComment.trim()) {
             Alert.alert('알림', '댓글 내용을 입력해주세요.');
             return;
         }
+
+        if (!user || !user.id) {
+            Alert.alert('오류', '사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.');
+            return;
+        }
+
+        console.log('Submitting comment with:', {
+            userId: user.id,
+            content: newComment.trim(),
+            parentId: replyingTo ? replyingTo.id : null
+        });
 
         setSubmittingComment(true);
         try {
@@ -91,44 +104,82 @@ export default function PostDetailScreen({ post, user, onNavigate, onBack }) {
                 `${config.API_BASE_URL}/community/posts/${post.id}/comments`,
                 {
                     userId: user.id,
-                    content: newComment.trim()
+                    content: newComment.trim(),
+                    parentId: replyingTo ? replyingTo.id : null
                 }
             );
             setNewComment('');
+            setReplyingTo(null);
             await loadComments();
             await loadPostDetails();
         } catch (error) {
             console.error('댓글 작성 실패:', error);
-            Alert.alert('오류', '댓글 작성에 실패했습니다.');
+            console.error('Error response:', error.response?.data);
+            console.error('Error status:', error.response?.status);
+            console.error('Request payload:', {
+                userId: user.id,
+                content: newComment.trim(),
+                parentId: replyingTo ? replyingTo.id : null
+            });
+            Alert.alert('오류', error.response?.data || '댓글 작성에 실패했습니다.');
         } finally {
             setSubmittingComment(false);
         }
     };
 
     const handleDeleteComment = async (commentId) => {
-        Alert.alert(
-            '댓글 삭제',
-            '댓글을 삭제하시겠습니까?',
-            [
-                { text: '취소', style: 'cancel' },
-                {
-                    text: '삭제',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await axios.delete(
-                                `${config.API_BASE_URL}/community/comments/${commentId}?userId=${user.id}`
-                            );
-                            await loadComments();
-                            await loadPostDetails();
-                        } catch (error) {
-                            console.error('댓글 삭제 실패:', error);
-                            Alert.alert('오류', error.response?.data || '댓글 삭제에 실패했습니다.');
+        console.log('🗑️ Delete button clicked for comment:', commentId);
+        console.log('User info:', { userId: user?.id, user });
+
+        // Web-compatible confirmation
+        const confirmDelete = Platform.OS === 'web'
+            ? window.confirm('댓글을 삭제하시겠습니까?')
+            : await new Promise((resolve) => {
+                Alert.alert(
+                    '댓글 삭제',
+                    '댓글을 삭제하시겠습니까?',
+                    [
+                        {
+                            text: '취소',
+                            style: 'cancel',
+                            onPress: () => resolve(false)
+                        },
+                        {
+                            text: '삭제',
+                            style: 'destructive',
+                            onPress: () => resolve(true)
                         }
-                    }
-                }
-            ]
-        );
+                    ]
+                );
+            });
+
+        if (!confirmDelete) {
+            console.log('❌ Delete cancelled');
+            return;
+        }
+
+        console.log('✅ Delete confirmed, sending request...');
+        try {
+            const deleteUrl = `${config.API_BASE_URL}/community/comments/${commentId}?userId=${user.id}`;
+            console.log('DELETE URL:', deleteUrl);
+
+            const response = await axios.delete(deleteUrl);
+            console.log('✅ Delete successful:', response.data);
+
+            await loadComments();
+            await loadPostDetails();
+            console.log('✅ Comments reloaded');
+        } catch (error) {
+            console.error('❌ 댓글 삭제 실패:', error);
+            console.error('Error response:', error.response?.data);
+            console.error('Error status:', error.response?.status);
+
+            if (Platform.OS === 'web') {
+                window.alert(error.response?.data || '댓글 삭제에 실패했습니다.');
+            } else {
+                Alert.alert('오류', error.response?.data || '댓글 삭제에 실패했습니다.');
+            }
+        }
     };
 
     const handleDeletePost = async () => {
@@ -304,35 +355,82 @@ export default function PostDetailScreen({ post, user, onNavigate, onBack }) {
                 <View style={styles.commentsSection}>
                     <Text style={styles.commentsTitle}>댓글 {comments.length}</Text>
 
-                    {comments.map((comment) => (
-                        <View key={comment.id} style={styles.commentItem}>
-                            <View style={styles.commentHeader}>
-                                <View style={styles.commentUserInfo}>
-                                    <View style={styles.commentAvatar}>
-                                        <Ionicons name="person" size={16} color="white" />
+                    {comments.filter(c => !c.parentId).map((comment) => (
+                        <View key={comment.id}>
+                            {/* Main Comment */}
+                            <View style={styles.commentItem}>
+                                <View style={styles.commentHeader}>
+                                    <View style={styles.commentUserInfo}>
+                                        <View style={styles.commentAvatar}>
+                                            <Ionicons name="person" size={16} color="white" />
+                                        </View>
+                                        <View>
+                                            <Text style={styles.commentUserName}>{comment.userName}</Text>
+                                            <Text style={styles.commentTime}>{getTimeAgo(comment.createdAt)}</Text>
+                                        </View>
                                     </View>
-                                    <View>
-                                        <Text style={styles.commentUserName}>{comment.userName}</Text>
-                                        <Text style={styles.commentTime}>{getTimeAgo(comment.createdAt)}</Text>
+                                    <View style={styles.commentActions}>
+                                        <TouchableOpacity
+                                            onPress={() => setReplyingTo({ id: comment.id, userName: comment.userName })}
+                                            style={styles.replyButton}
+                                        >
+                                            <Text style={styles.replyButtonText}>답글</Text>
+                                        </TouchableOpacity>
+                                        {user && user.id === comment.userId && (
+                                            <TouchableOpacity onPress={() => handleDeleteComment(comment.id)}>
+                                                <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
+                                            </TouchableOpacity>
+                                        )}
                                     </View>
                                 </View>
-                                {user && user.id === comment.userId && (
-                                    <TouchableOpacity onPress={() => handleDeleteComment(comment.id)}>
-                                        <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
-                                    </TouchableOpacity>
-                                )}
+                                <Text style={styles.commentText}>{comment.content}</Text>
                             </View>
-                            <Text style={styles.commentText}>{comment.content}</Text>
+
+                            {/* Replies */}
+                            {comments.filter(reply => reply.parentId === comment.id).map(reply => (
+                                <View key={reply.id} style={styles.replyItem}>
+                                    <View style={styles.replyHeader}>
+                                        <View style={styles.commentUserInfo}>
+                                            <Ionicons name="return-down-forward" size={18} color={colors.textTertiary} style={{ marginRight: 8 }} />
+                                            <View style={styles.commentAvatarSmall}>
+                                                <Ionicons name="person" size={12} color="white" />
+                                            </View>
+                                            <View>
+                                                <Text style={styles.commentUserNameSmall}>{reply.userName}</Text>
+                                                <Text style={styles.commentTime}>{getTimeAgo(reply.createdAt)}</Text>
+                                            </View>
+                                        </View>
+                                        {user && user.id === reply.userId && (
+                                            <TouchableOpacity onPress={() => handleDeleteComment(reply.id)}>
+                                                <Ionicons name="trash-outline" size={16} color={colors.textSecondary} />
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                    <Text style={styles.replyText}>{reply.content}</Text>
+                                </View>
+                            ))}
                         </View>
                     ))}
                 </View>
             </ScrollView>
 
+            {/* Reply Info */}
+            {replyingTo && (
+                <View style={styles.replyInfoContainer}>
+                    <Text style={styles.replyInfoText}>
+                        <Text style={{ fontWeight: 'bold' }}>{replyingTo.userName}</Text>님에게 답글 작성 중...
+                    </Text>
+                    <TouchableOpacity onPress={() => setReplyingTo(null)}>
+                        <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                </View>
+            )}
+
             {/* Comment Input */}
             <View style={styles.commentInputContainer}>
                 <TextInput
                     style={styles.commentInput}
-                    placeholder="댓글을 입력하세요..."
+                    placeholder={replyingTo ? "답글을 입력하세요..." : "댓글을 입력하세요..."}
                     placeholderTextColor={colors.textTertiary}
                     value={newComment}
                     onChangeText={setNewComment}
@@ -485,6 +583,22 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 8,
     },
+    commentActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    replyButton: {
+        paddingVertical: 4,
+        paddingHorizontal: 8,
+        backgroundColor: colors.border + '30',
+        borderRadius: 4,
+    },
+    replyButtonText: {
+        fontSize: 11,
+        color: colors.primary,
+        fontWeight: '600',
+    },
     commentUserInfo: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -535,5 +649,52 @@ const styles = StyleSheet.create({
     sendButton: {
         marginLeft: 8,
         padding: 8,
+    },
+    replyItem: {
+        marginLeft: 36,
+        marginTop: 4,
+        marginBottom: 16,
+        paddingLeft: 12,
+        borderLeftWidth: 2,
+        borderLeftColor: colors.border,
+    },
+    replyHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    commentAvatarSmall: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: colors.textTertiary,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 6,
+    },
+    commentUserNameSmall: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: colors.text,
+    },
+    replyText: {
+        fontSize: 13,
+        lineHeight: 18,
+        color: colors.text,
+    },
+    replyInfoContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: colors.primary + '10',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderTopWidth: 1,
+        borderTopColor: colors.primary + '20',
+    },
+    replyInfoText: {
+        fontSize: 12,
+        color: colors.text,
     },
 });

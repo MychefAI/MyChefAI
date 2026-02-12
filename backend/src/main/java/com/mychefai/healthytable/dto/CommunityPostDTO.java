@@ -18,6 +18,7 @@ public class CommunityPostDTO {
     private String content;
     private List<String> ingredients;
     private List<String> steps;
+    private List<String> tags;
     private String imageUrl;
     private Long likeCount;
     private Long commentCount;

@@ -1,98 +1,140 @@
 
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, StatusBar, Dimensions, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, StatusBar, ActivityIndicator, Platform, useWindowDimensions, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
-
 import { useAuth } from '../context/AuthContext';
 
-const { width } = Dimensions.get('window');
+// --- Minimalist Components ---
+
+const SocialButton = ({ icon, text, bgColor, iconColor, textColor, onPress, loading, border }) => (
+    <TouchableOpacity
+        style={[
+            styles.socialButton,
+            { backgroundColor: bgColor, borderColor: border ? '#E5E7EB' : 'transparent', borderWidth: border ? 1 : 0 }
+        ]}
+        onPress={onPress}
+        disabled={loading}
+    >
+        {loading ? <ActivityIndicator color={textColor} /> : (
+            <>
+                {/* Fixed width container for icon to ensure text centering */}
+                <View style={{ width: 24, alignItems: 'center', marginRight: 12 }}>
+                    {icon}
+                </View>
+                <Text style={[styles.buttonText, { color: textColor }]}>{text}</Text>
+            </>
+        )}
+    </TouchableOpacity>
+);
+
+const LoginForm = ({ onLogin, onGuest, loading, handleSocialLogin }) => {
+    return (
+        <View style={styles.formContainer}>
+            <View style={styles.header}>
+                <View style={styles.logoBadge}>
+                    <Ionicons name="restaurant" size={32} color={colors.primary} />
+                </View>
+                <Text style={styles.title}>환영합니다!</Text>
+                <Text style={styles.subtitle}>로그인하고 MyChefAI를 시작하세요</Text>
+            </View>
+
+            <View style={styles.buttonStack}>
+                <SocialButton
+                    text="카카오로 3초만에 시작하기"
+                    bgColor="#FEE500"
+                    textColor="#3C1E1E"
+                    icon={<Ionicons name="chatbubble" size={20} color="#3C1E1E" />}
+                    onPress={() => handleSocialLogin('kakao')}
+                    loading={loading}
+                />
+                <SocialButton
+                    text="네이버로 시작하기"
+                    bgColor="#03C75A"
+                    textColor="#FFFFFF"
+                    icon={<Text style={{ color: '#FFF', fontWeight: '900', fontSize: 16 }}>N</Text>}
+                    onPress={() => handleSocialLogin('naver')}
+                />
+                <SocialButton
+                    text="Google로 계속하기"
+                    bgColor="#FFFFFF"
+                    textColor="#374151"
+                    border
+                    icon={<Ionicons name="logo-google" size={20} color="#374151" />}
+                    onPress={() => handleSocialLogin('google')}
+                />
+            </View>
+
+            <View style={styles.footer}>
+                <View style={styles.divider}>
+                    <View style={styles.line} />
+                    <Text style={styles.orText}>또는</Text>
+                    <View style={styles.line} />
+                </View>
+                <TouchableOpacity onPress={onGuest}>
+                    <Text style={styles.guestLink}>로그인 없이 둘러보기</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+};
 
 export default function LoginScreen({ onLogin, onGuest }) {
     const { login } = useAuth();
     const [loading, setLoading] = useState(false);
-    const [keepLoggedIn, setKeepLoggedIn] = useState(true); // Default to true for better UX
+    const [keepLoggedIn, setKeepLoggedIn] = useState(true);
+
+    const { width, height } = useWindowDimensions();
+    const isWeb = Platform.OS === 'web';
+    const isSplitLayout = width > 700;
 
     const handleSocialLogin = async (type) => {
         setLoading(true);
-        const success = await login(type, keepLoggedIn); // Pass the flag
+        const success = await login(type, keepLoggedIn);
         setLoading(false);
         if (success) {
-            onLogin(); // Navigate to main screen
+            onLogin();
         }
     };
+
+    if (isWeb && isSplitLayout) {
+        return (
+            <View style={[styles.container, { flexDirection: 'row', minHeight: height }]}>
+                {/* Left Side: Brand Identity (Minimal) */}
+                <View style={styles.leftPane}>
+                    <View style={styles.brandContainer}>
+                        <Ionicons name="restaurant-outline" size={64} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.brandTitle}>MyChefAI</Text>
+                        <Text style={styles.brandSlogan}>당신을 위한 스마트 인공지능 셰프</Text>
+                    </View>
+                    {/* Abstract Circle Decoration */}
+                    <View style={styles.circleDecoration} />
+                </View>
+
+                {/* Right Side: Login Form */}
+                <View style={styles.rightPane}>
+                    <LoginForm
+                        onLogin={onLogin}
+                        onGuest={onGuest}
+                        loading={loading}
+                        handleSocialLogin={handleSocialLogin}
+                    />
+                </View>
+            </View>
+        );
+    }
+
+    // Mobile Layout
     return (
         <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-
-            <View style={styles.content}>
-                {/* Hero Section */}
-                <View style={styles.heroSection}>
-                    <View style={styles.logoContainer}>
-                        <View style={styles.logoCircleOuter}>
-                            <View style={styles.logoCircleInner}>
-                                <Ionicons name="restaurant" size={48} color={colors.primary} />
-                            </View>
-                        </View>
-                        {/* Decorative bubbles */}
-                        <View style={[styles.bubble, styles.bubble1]} />
-                        <View style={[styles.bubble, styles.bubble2]} />
-                    </View>
-
-                    <Text style={styles.appName}>MyChefAI</Text>
-                    <Text style={styles.tagline}>당신을 위한 스마트 인공지능 셰프</Text>
-                </View>
-
-                {/* Auto Login Checkbox */}
-                <View style={styles.optionSection}>
-                    <TouchableOpacity
-                        style={styles.checkboxContainer}
-                        onPress={() => setKeepLoggedIn(!keepLoggedIn)}
-                        activeOpacity={0.7}
-                    >
-                        <View style={[styles.checkbox, keepLoggedIn && styles.checkboxChecked]}>
-                            {keepLoggedIn && <Ionicons name="checkmark" size={14} color="white" />}
-                        </View>
-                        <Text style={styles.checkboxLabel}>자동 로그인</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.optionHint}>앱을 닫아도 로그인이 유지됩니다</Text>
-                </View>
-
-                {/* Login Actions */}
-                <View style={styles.actionSection}>
-                    <View style={styles.buttonStack}>
-                        {/* Kakao - Official Brand Color */}
-                        <TouchableOpacity
-                            style={[styles.socialButton, { backgroundColor: '#FEE500' }]}
-                            onPress={() => handleSocialLogin('kakao')}
-                            disabled={loading}
-                        >
-                            {loading ? <ActivityIndicator color="#3C1E1E" /> : (
-                                <>
-                                    <Ionicons name="chatbubble-sharp" size={20} color="#3C1E1E" style={styles.socialIcon} />
-                                    <Text style={[styles.buttonText, { color: '#3C1E1E' }]}>카카오로 3초만에 시작하기</Text>
-                                </>
-                            )}
-                        </TouchableOpacity>
-
-                        {/* Naver - Official Brand Color */}
-                        <TouchableOpacity style={[styles.socialButton, { backgroundColor: '#03C75A' }]} onPress={() => handleSocialLogin('naver')}>
-                            <Text style={[styles.nIcon, { color: 'white' }]}>N</Text>
-                            <Text style={[styles.buttonText, { color: 'white' }]}>네이버로 시작하기</Text>
-                        </TouchableOpacity>
-
-                        {/* Google - Clean White */}
-                        <TouchableOpacity style={[styles.socialButton, styles.googleButton]} onPress={() => handleSocialLogin('google')}>
-                            <Ionicons name="logo-google" size={20} color="#333" style={styles.socialIcon} />
-                            <Text style={[styles.buttonText, { color: '#333' }]}>Google로 계속하기</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <TouchableOpacity onPress={onGuest} style={styles.guestButton}>
-                        <Text style={styles.guestText}>로그인 없이 둘러보기</Text>
-                        <Ionicons name="arrow-forward" size={14} color={colors.textTertiary} style={{ marginLeft: 4 }} />
-                    </TouchableOpacity>
-                </View>
+            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+            <View style={{ flex: 1, justifyContent: 'center', padding: 24 }}>
+                <LoginForm
+                    onLogin={onLogin}
+                    onGuest={onGuest}
+                    loading={loading}
+                    handleSocialLogin={handleSocialLogin}
+                />
             </View>
         </SafeAreaView>
     );
@@ -101,155 +143,119 @@ export default function LoginScreen({ onLogin, onGuest }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.background,
+        backgroundColor: '#FFFFFF',
     },
-    content: {
+    // Split Layout Styles
+    leftPane: {
         flex: 1,
-        justifyContent: 'center', // Center vertically
-        paddingHorizontal: 40, // More whitespace
-        paddingBottom: 40,
-    },
-    heroSection: {
-        alignItems: 'center',
-        marginBottom: 60, // Space between hero and buttons
-    },
-    logoContainer: {
+        backgroundColor: colors.primary, // Brand Color Background
+        justifyContent: 'center',
+        padding: 60,
         position: 'relative',
-        marginBottom: 24,
+        overflow: 'hidden',
+    },
+    rightPane: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: '#FFFFFF',
     },
-    logoCircleOuter: {
-        width: 100, // Smaller logo
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: colors.primaryLight,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#FED7AA',
+    brandContainer: {
+        zIndex: 10,
     },
-    logoCircleInner: {
-        width: 70, // Smaller logo
-        height: 70,
-        borderRadius: 35,
-        backgroundColor: 'white',
-        justifyContent: 'center',
-        alignItems: 'center',
-        ...colors.shadow.md,
+    brandTitle: {
+        fontSize: 48,
+        fontWeight: '800',
+        color: '#FFFFFF',
+        marginTop: 24,
+        marginBottom: 12,
+        letterSpacing: -1,
     },
-    bubble: {
-        position: 'absolute',
-        backgroundColor: colors.primary,
-        borderRadius: 50,
-        opacity: 0.1,
-    },
-    bubble1: {
-        width: 16,
-        height: 16,
-        top: 0,
-        right: 0,
-    },
-    bubble2: {
-        width: 10,
-        height: 10,
-        bottom: 0,
-        left: 10,
-    },
-    appName: {
-        fontSize: 26, // Slightly smaller
-        fontWeight: 'bold',
-        color: colors.text,
-        letterSpacing: -0.5,
-        marginBottom: 6,
-    },
-    tagline: {
-        fontSize: 15,
-        color: colors.textSecondary,
+    brandSlogan: {
+        fontSize: 20,
+        color: 'rgba(255,255,255,0.8)',
         fontWeight: '500',
+        maxWidth: 400,
+        lineHeight: 30,
     },
-    actionSection: {
+    circleDecoration: {
+        position: 'absolute',
+        top: -100,
+        right: -100,
+        width: 400,
+        height: 400,
+        borderRadius: 200,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+    },
+
+    // Form Styles
+    formContainer: {
         width: '100%',
+        maxWidth: 400,
+        padding: 24,
+    },
+    header: {
         alignItems: 'center',
+        marginBottom: 40,
+    },
+    logoBadge: {
+        width: 64,
+        height: 64,
+        borderRadius: 20,
+        backgroundColor: '#FFF7ED', // Light tint
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    title: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        color: '#1F2937',
+        marginBottom: 8,
+    },
+    subtitle: {
+        fontSize: 16,
+        color: '#6B7280',
     },
     buttonStack: {
-        width: '100%',
         gap: 12,
-        marginBottom: 24,
+        marginBottom: 32,
     },
     socialButton: {
-        width: '100%',
-        height: 50, // Standard height
-        borderRadius: 8, // Standard 'simple' radius
+        height: 52,
+        borderRadius: 12, // Modern radius
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        elevation: 0, // Flat look
-        borderWidth: 0,
-    },
-    googleButton: {
-        backgroundColor: 'white',
-        borderWidth: 1,
-        borderColor: '#E5E7EB', // Subtle border
-    },
-    socialIcon: {
-        position: 'absolute',
-        left: 16, // Fixed icon position
-    },
-    nIcon: {
-        fontSize: 16,
-        fontWeight: '900',
-        position: 'absolute',
-        left: 20,
+        elevation: 0,
     },
     buttonText: {
-        fontSize: 15, // Standard text size
+        fontSize: 16,
         fontWeight: '600',
     },
-    guestButton: {
-        padding: 10,
+    footer: {
+        marginTop: 0,
+    },
+    divider: {
         flexDirection: 'row',
         alignItems: 'center',
+        marginBottom: 24,
     },
-    guestText: {
-        color: colors.textTertiary,
-        fontSize: 13,
+    line: {
+        flex: 1,
+        height: 1,
+        backgroundColor: '#E5E7EB',
     },
-    // Options
-    optionSection: {
-        width: '100%',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 20,
-        paddingHorizontal: 4,
-    },
-    checkboxContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    checkbox: {
-        width: 20,
-        height: 20,
-        borderRadius: 4,
-        borderWidth: 1.5,
-        borderColor: colors.borderHighlight,
-        marginRight: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'white',
-    },
-    checkboxChecked: {
-        backgroundColor: colors.primary,
-        borderColor: colors.primary,
-    },
-    checkboxLabel: {
+    orText: {
+        marginHorizontal: 16,
+        color: '#9CA3AF',
         fontSize: 14,
-        color: colors.textSecondary,
         fontWeight: '500',
     },
-    optionHint: {
-        fontSize: 11,
-        color: colors.textTertiary,
+    guestLink: {
+        textAlign: 'center',
+        color: colors.primary,
+        fontSize: 15,
+        fontWeight: '600',
     }
 });

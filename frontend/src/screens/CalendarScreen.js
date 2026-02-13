@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ScrollView, Modal, Platform, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ScrollView, Modal, Platform, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import axios from 'axios';
@@ -14,17 +14,33 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
     const [selectedDate, setSelectedDate] = useState(null);
     const [showMealModal, setShowMealModal] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [activityData, setActivityData] = useState({}); // { '2026-02-02': { hasAiInteraction: true } }
+    const [activityData, setActivityData] = useState({});
+    const [monthlyAnalysis, setMonthlyAnalysis] = useState('');
 
-    // Fetch meal logs and activity logs from backend
+    // Fetch meal logs, activity logs, and monthly analysis from backend
     useEffect(() => {
         if (isLoggedIn && token) {
             fetchMealLogs();
             fetchActivityLogs();
+            fetchMonthlyAnalysis();
         }
-    }, [isLoggedIn, token]);
+    }, [isLoggedIn, token, currentDate]);
 
-
+    const fetchMonthlyAnalysis = async () => {
+        if (!token) return;
+        try {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth() + 1;
+            const response = await axios.get(`${config.API_BASE_URL}/meallogs/analysis/monthly`, {
+                params: { year, month },
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setMonthlyAnalysis(response.data);
+        } catch (error) {
+            console.log('Monthly analysis failed or empty');
+            setMonthlyAnalysis('');
+        }
+    };
 
     const fetchActivityLogs = async () => {
         if (!token) return;
@@ -59,6 +75,16 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
             // Transform list to object with date keys
             const transformedData = {};
             logs.forEach(log => {
+                let parsedDetails = {};
+                try {
+                    if (log.mealDetails) {
+                        parsedDetails = JSON.parse(log.mealDetails);
+                    }
+                } catch (e) {
+                    console.error("JSON Parse Error:", e);
+                    // Alert.alert("데이터 오류", "레시피 정보를 불러오는 중 오류가 발생했습니다: " + e.message);
+                }
+
                 transformedData[log.recordDate] = {
                     breakfast: log.breakfast,
                     lunch: log.lunch,
@@ -69,7 +95,8 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
                     isAiBreakfast: log.isAiBreakfast,
                     isAiLunch: log.isAiLunch,
                     isAiDinner: log.isAiDinner,
-                    snacks: log.snacks ? JSON.parse(log.snacks) : []
+                    snacks: log.snacks ? JSON.parse(log.snacks) : [],
+                    mealDetails: parsedDetails
                 };
             });
 
@@ -138,9 +165,23 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
         const mealContent = selectedMeal ? selectedMeal[type] : null;
         const calories = selectedMeal ? selectedMeal[`${type}Calories`] : null;
         const isAi = selectedMeal ? selectedMeal[`isAi${type.charAt(0).toUpperCase() + type.slice(1)}`] : false;
+        const details = selectedMeal?.mealDetails?.[type];
+        const hasDetails = details && details.fullText;
 
         return (
-            <View style={[styles.mealSection, { backgroundColor: bgColor, borderColor: color + '40' }]}>
+            <TouchableOpacity
+                style={[styles.mealSection, { backgroundColor: bgColor, borderColor: color + '40' }]}
+                activeOpacity={hasDetails ? 0.7 : 1}
+                onPress={() => {
+                    if (hasDetails) {
+                        Alert.alert(
+                            `${title} 레시피 상세`,
+                            details.fullText,
+                            [{ text: "확인", style: "default" }]
+                        );
+                    }
+                }}
+            >
                 <View style={styles.mealHeader}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                         <Text style={{ fontSize: 20, marginRight: 8 }}>{icon}</Text>
@@ -149,6 +190,9 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
                             <View style={styles.aiBadge}>
                                 <Text style={styles.aiBadgeText}>AI</Text>
                             </View>
+                        )}
+                        {hasDetails && (
+                            <Text style={{ fontSize: 12, color: color, marginLeft: 8 }}>📖</Text>
                         )}
                     </View>
                     {calories && (
@@ -160,7 +204,12 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
                 <Text style={styles.mealContent}>
                     {mealContent || '기록 없음'}
                 </Text>
-            </View>
+                {hasDetails && (
+                    <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 4, marginLeft: 30 }}>
+                        (탭하여 레시피 보기)
+                    </Text>
+                )}
+            </TouchableOpacity>
         );
     };
 
@@ -256,6 +305,14 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
                     })}
                 </View>
 
+                {/* Monthly AI Analysis Banner */}
+                {monthlyAnalysis ? (
+                    <View style={styles.analysisCard}>
+                        <Text style={styles.analysisTitle}>🤖 AI 셰프의 이번 달 코멘트</Text>
+                        <Text style={styles.analysisText}>{monthlyAnalysis}</Text>
+                    </View>
+                ) : null}
+
                 {/* Stats */}
                 <View style={styles.statsContainer}>
                     <View style={[styles.statCard, { borderColor: '#FCD34D' }]}>
@@ -310,6 +367,19 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
                                 <Ionicons name="close" size={24} color="#6B7280" />
                             </TouchableOpacity>
                         </View>
+
+                        {/* Daily Calorie Summary */}
+                        {selectedMeal && (
+                            <View style={styles.dailySummary}>
+                                <Text style={styles.summaryText}>
+                                    총 섭취 칼로리: <Text style={styles.highlightText}>
+                                        {(selectedMeal.breakfastCalories || 0) +
+                                            (selectedMeal.lunchCalories || 0) +
+                                            (selectedMeal.dinnerCalories || 0)} kcal
+                                    </Text>
+                                </Text>
+                            </View>
+                        )}
 
                         <ScrollView contentContainerStyle={styles.mealList}>
                             {renderMealSection('breakfast', '🌅', '아침', '#F59E0B', '#FFFBEB')}
@@ -622,5 +692,40 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 10,
         fontWeight: 'bold',
+    },
+    analysisCard: {
+        backgroundColor: '#EEF2FF',
+        padding: 16,
+        margin: 16,
+        borderRadius: 12,
+        borderLeftWidth: 4,
+        borderLeftColor: colors.primary,
+    },
+    analysisTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#1F2937',
+        marginBottom: 8,
+    },
+    analysisText: {
+        fontSize: 14,
+        color: '#4B5563',
+        lineHeight: 20,
+    },
+    dailySummary: {
+        backgroundColor: '#F3F4F6',
+        padding: 12,
+        borderRadius: 8,
+        marginBottom: 16,
+        marginHorizontal: 16,
+        alignItems: 'center',
+    },
+    summaryText: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#374151',
+    },
+    highlightText: {
+        color: colors.primary,
     },
 });

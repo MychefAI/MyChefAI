@@ -8,7 +8,7 @@ import { LOCAL_IP } from './secrets';
 
 const API_BASE_URL = Platform.select({
     ios: `http://${LOCAL_IP}:8080/api`,
-    android: `http://10.0.2.2:8080/api`, // Android Emulator default info
+    android: `http://${LOCAL_IP}:8080/api`, // Use LOCAL_IP for physical devices
     web: `http://localhost:8080/api`,
     default: `http://${LOCAL_IP}:8080/api`,
 });

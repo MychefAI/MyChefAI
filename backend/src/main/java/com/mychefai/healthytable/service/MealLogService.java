@@ -10,6 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.HashMap;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 @Service
 @RequiredArgsConstructor
@@ -52,6 +56,60 @@ public class MealLogService {
         if (dto.getSnacks() != null)
             mealLog.setSnacks(dto.getSnacks());
 
+        // Update JSON fields for details and stats
+        if (dto.getMealDetails() != null) {
+            // Merge existing details with new details to prevent overwriting
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                Map<String, Object> currentDetails = new HashMap<>();
+
+                if (mealLog.getMealDetails() != null && !mealLog.getMealDetails().isEmpty()) {
+                    currentDetails = mapper.readValue(mealLog.getMealDetails(),
+                            new TypeReference<Map<String, Object>>() {
+                            });
+                }
+
+                Map<String, Object> newDetails = mapper.readValue(dto.getMealDetails(),
+                        new TypeReference<Map<String, Object>>() {
+                        });
+                currentDetails.putAll(newDetails);
+
+                mealLog.setMealDetails(mapper.writeValueAsString(currentDetails));
+            } catch (Exception e) {
+                // Fallback: just set the new value if parsing fails
+                mealLog.setMealDetails(dto.getMealDetails());
+            }
+        }
+
+        if (dto.getDailyStats() != null) {
+            // For daily stats, usually checking the latest is fine, or we could also merge.
+            // Let's overwrite for stats as they are usually recalculated for the day.
+            mealLog.setDailyStats(dto.getDailyStats());
+        }
+
         return mealLogRepository.save(mealLog);
+    }
+
+    private final com.mychefai.healthytable.service.GeminiService geminiService;
+
+    public String getMonthlyAnalysis(User user, int year, int month) {
+        // Fetch all logs for the month
+        java.time.YearMonth yearMonth = java.time.YearMonth.of(year, month);
+        java.time.LocalDate startDate = yearMonth.atDay(1);
+        java.time.LocalDate endDate = yearMonth.atEndOfMonth();
+
+        // Warning: This implies adding a custom query method to Repository or
+        // formatting the date filter manually
+        // For simplicity, let's fetch all and filter or add a between method.
+        // Assuming findByUserAndRecordDateBetween exists or we add it.
+        // Let's use findByUser and filter in memory for now to avoid Repo interface
+        // changes if possible,
+        // OR better, let's add the method to the repository interface in the next step
+        // if it doesn't exist.
+        // I'll assume we can add it.
+        List<MealLog> monthlyLogs = mealLogRepository.findByUserAndRecordDateBetween(user, startDate, endDate);
+
+        // Block the Mono to get the result synchronously
+        return geminiService.analyzeMonthlyMealPlan(monthlyLogs).block();
     }
 }

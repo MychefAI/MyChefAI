@@ -56,10 +56,17 @@ export const AuthProvider = ({ children }) => {
     // Google Login Request Setup
     const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
         ...GOOGLE_CLIENT_IDS,
-        redirectUri: AuthSession.makeRedirectUri({
-            scheme: 'mychefai',
-            // For development, especially on web, this helps resolve to localhost:PORT
-            preferLocalhost: true,
+        redirectUri: Platform.select({
+            web: AuthSession.makeRedirectUri({
+                scheme: 'mychefai',
+                preferLocalhost: true,
+            }),
+            ios: 'http://localhost:8081', // Placeholder if not needed, but actually use the reverse client ID if available
+            // Wait, let's use the exact string from the git diff
+            ios: 'com.googleusercontent.apps.1016750907889-ijfnf8k0pkksfupfshb8dugrjbeshglc:/oauthredirect',
+            default: AuthSession.makeRedirectUri({
+                scheme: 'mychefai',
+            }),
         }),
     });
 
@@ -121,8 +128,7 @@ export const AuthProvider = ({ children }) => {
     // Login Function Exposed to Components
     const login = async (socialType, keepLoggedIn = true) => {
         if (socialType === 'google') {
-            // Store the flag temporarily for the Google response effector
-            // Or handle as a separate param in future refactor
+            // Google Login Prompt
             await googlePromptAsync();
             return true;
         } else if (socialType === 'kakao') {

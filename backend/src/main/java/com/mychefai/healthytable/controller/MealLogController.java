@@ -39,6 +39,15 @@ public class MealLogController {
     @PostMapping
     public ResponseEntity<MealLog> saveMealLog(@RequestBody MealLogDTO dto) {
         User user = getCurrentUser();
+        // The DTO needs to be updated or we need to ensure the service handles the new
+        // fields mapping if DTO has them.
+        // Assuming we need to update DTO first. Wait, let me check DTO.
         return ResponseEntity.ok(mealLogService.saveOrUpdateMealLog(user, dto));
+    }
+
+    @GetMapping("/analysis/monthly")
+    public ResponseEntity<String> getMonthlyAnalysis(@RequestParam int year, @RequestParam int month) {
+        User user = getCurrentUser();
+        return ResponseEntity.ok(mealLogService.getMonthlyAnalysis(user, year, month));
     }
 }

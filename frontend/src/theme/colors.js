@@ -5,6 +5,7 @@ export const colors = {
     primaryLight: '#FFF7ED', // Orange-50: Very subtle orange tint for backgrounds
     secondary: '#10B981', // Emerald-500: Fresh green for success/health
     accent: '#F43F5E', // Rose-500: Friendly pink/red for highlights
+    health: '#F43F5E', // Rose-500: For health related icons
 
     // Backgrounds
     background: '#FAFAF9', // Warm Gray-50: Softer than pure white, premium feel

@@ -48,4 +48,10 @@ public class MealLog {
 
     @Column(columnDefinition = "json")
     private String snacks; // Stored as JSON string in DB
+
+    @Column(columnDefinition = "json")
+    private String mealDetails; // Detailed recipe info for breakfast/lunch/dinner
+
+    @Column(columnDefinition = "json")
+    private String dailyStats; // Daily nutrition stats (totalCalories, carbs, etc.)
 }

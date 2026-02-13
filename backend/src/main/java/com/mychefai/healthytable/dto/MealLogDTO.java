@@ -18,4 +18,7 @@ public class MealLogDTO {
     private Boolean isAiBreakfast;
     private Boolean isAiLunch;
     private Boolean isAiDinner;
+
+    private String mealDetails; // JSON String
+    private String dailyStats; // JSON String
 }

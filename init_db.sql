@@ -62,6 +62,8 @@ CREATE TABLE meal_logs (
   is_ai_breakfast     BOOLEAN DEFAULT FALSE,
   is_ai_lunch         BOOLEAN DEFAULT FALSE,
   is_ai_dinner        BOOLEAN DEFAULT FALSE,
+  meal_details        JSON NULL,
+  daily_stats         JSON NULL,
   CONSTRAINT fk_meal_user
     FOREIGN KEY (user_id) REFERENCES users(id)
     ON DELETE CASCADE,

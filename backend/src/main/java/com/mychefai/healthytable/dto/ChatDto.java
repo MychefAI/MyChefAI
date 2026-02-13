@@ -22,6 +22,7 @@ public class ChatDto {
     public static class Request {
         private String message;
         private List<Message> history;
+        private boolean useFridge = true; // Default to true
     }
 
     @Data

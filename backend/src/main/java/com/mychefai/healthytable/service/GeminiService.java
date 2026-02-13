@@ -118,4 +118,29 @@ public class GeminiService {
                     return Mono.just("[]");
                 });
     }
+
+    public Mono<String> analyzeMonthlyMealPlan(List<com.mychefai.healthytable.domain.MealLog> logs) {
+        if (logs == null || logs.isEmpty()) {
+            return Mono.just("이번 달은 아직 식단 기록이 없네요. 😅 꾸준한 기록이 건강의 첫걸음입니다!");
+        }
+
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("다음은 사용자의 한 달간 식단 기록입니다. 데이터를 분석하여 월간 식습관에 대한 짧고 친근한 총평(한줄평)을 작성해주세요. ");
+        prompt.append("칭찬할 점과 개선할 점을 포함해주세요. 이모지를 사용해서 부드럽게 표현해주세요. (100자 이내)\n\n");
+        prompt.append("[식단 기록]\n");
+
+        for (com.mychefai.healthytable.domain.MealLog log : logs) {
+            prompt.append("- ").append(log.getRecordDate()).append(": ");
+            if (log.getBreakfast() != null)
+                prompt.append("아침(").append(log.getBreakfast()).append(") ");
+            if (log.getLunch() != null)
+                prompt.append("점심(").append(log.getLunch()).append(") ");
+            if (log.getDinner() != null)
+                prompt.append("저녁(").append(log.getDinner()).append(") ");
+            prompt.append("\n");
+        }
+
+        // Reuse getChatResponse logic but without history
+        return getChatResponse(prompt.toString(), null);
+    }
 }

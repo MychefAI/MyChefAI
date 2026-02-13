@@ -1,6 +1,5 @@
-
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, SafeAreaView, ActivityIndicator, Modal, Alert } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, SafeAreaView, ActivityIndicator, Modal, Alert, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import * as Speech from 'expo-speech'; // TTS
@@ -42,6 +41,7 @@ export default function ChatScreen({ messages, setMessages, healthProfile, setMe
     const { isLoggedIn } = useAuth();
     const [inputText, setInputText] = useState('');
     const [loading, setLoading] = useState(false);
+    const [useFridge, setUseFridge] = useState(true); // Default ON
     const flatListRef = useRef(null);
 
     // Meal Plan Modal
@@ -172,10 +172,15 @@ export default function ChatScreen({ messages, setMessages, healthProfile, setMe
                 content: msg.text
             }));
 
+            console.log('🔍 [DEBUG] Sending to AI:', { useFridge, messageText });
+
             const response = await axios.post(`${config.API_BASE_URL}/chat/message`, {
                 message: messageText,
-                history: history
+                history: history,
+                useFridge: useFridge
             });
+
+            console.log('✅ [DEBUG] AI Response received');
 
             const rawAiText = response.data.reply;
             const cleanedText = cleanAiResponse(rawAiText);
@@ -264,6 +269,8 @@ export default function ChatScreen({ messages, setMessages, healthProfile, setMe
     };
 
     const confirmAddToPlan = async () => {
+
+
         if (!isLoggedIn) {
             Alert.alert("로그인 필요", "식단 기록은 회원만 가능합니다.");
             return;
@@ -271,20 +278,32 @@ export default function ChatScreen({ messages, setMessages, healthProfile, setMe
 
         const dateKey = targetDate.toISOString().split('T')[0];
 
-        // Extract calories from the full AI response text
         // Looks for patterns like "120kcal", "120 kcal", "120 칼로리"
         const calorieMatch = recipeDetails.fullText.match(/(\d+)\s*(kcal|칼로리)/i);
         const calories = calorieMatch ? parseInt(calorieMatch[1]) : null;
 
         try {
+            // Prepare mealDetails JSON
+            const detailsPayload = JSON.stringify({
+                [targetMealType]: { // breakfast, lunch, or dinner
+                    fullText: recipeDetails.fullText,
+                    savedAt: new Date().toISOString()
+                }
+            });
+
+
+
             const payload = {
                 recordDate: dateKey,
-                [targetMealType]: selectedRecipeToAdd,
+                [targetMealType]: selectedRecipeToAdd, // User edited title
                 [`${targetMealType}Calories`]: calories,
-                [`isAi${targetMealType.charAt(0).toUpperCase() + targetMealType.slice(1)}`]: true
+                [`isAi${targetMealType.charAt(0).toUpperCase() + targetMealType.slice(1)}`]: true,
+                mealDetails: detailsPayload
             };
 
             await axios.post(`${config.API_BASE_URL}/meallogs`, payload);
+
+            Alert.alert("✅ 저장 완료", "식단에 추가되었습니다!");
 
             // Update local state to reflect change immediately
             setMealData(prev => ({
@@ -298,10 +317,10 @@ export default function ChatScreen({ messages, setMessages, healthProfile, setMe
             }));
 
             setModalVisible(false);
-            Alert.alert("성공 📅", `${dateKey} ${targetMealType === 'breakfast' ? '아침' : targetMealType === 'lunch' ? '점심' : '저녁'} 식단에 추가되었습니다! ${calories ? `(${calories}kcal)` : ''}`);
+
         } catch (error) {
             console.error('Failed to save meal log:', error);
-            Alert.alert("오류", "식단 저장에 실패했습니다.");
+            Alert.alert("오류", "저장 실패: " + error.message);
         }
     };
 
@@ -430,22 +449,45 @@ export default function ChatScreen({ messages, setMessages, healthProfile, setMe
                 keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
                 style={styles.inputContainer}
             >
-                {/* STT Button (Placeholder for now) */}
-                <TouchableOpacity style={styles.micButton} onPress={() => Alert.alert("준비 중", "음성 인식 기능은 준비 중입니다.")}>
-                    <Ionicons name="mic-outline" size={24} color={colors.textSecondary} />
-                </TouchableOpacity>
+                {/* Options Bar (Above Input) */}
+                <View style={styles.optionsBar}>
+                    {isLoggedIn && (
+                        <TouchableOpacity
+                            style={[styles.fridgeChip, useFridge && styles.fridgeChipActive]}
+                            onPress={() => setUseFridge(!useFridge)}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons
+                                name={useFridge ? "snow" : "close-circle"}
+                                size={16}
+                                color={useFridge ? colors.primary : "#EF4444"}
+                            />
+                            <Text style={[styles.fridgeChipText, useFridge && styles.fridgeChipTextActive]}>
+                                {useFridge ? "❄️ 냉장고 활용 중" : "🚫 냉장고 미사용"}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
 
-                <TextInput
-                    style={styles.input}
-                    placeholder="메시지를 입력하세요..."
-                    value={inputText}
-                    onChangeText={setInputText}
-                    onSubmitEditing={sendMessage}
-                    multiline
-                />
-                <TouchableOpacity style={styles.sendButton} onPress={sendMessage} disabled={loading}>
-                    <Ionicons name="send" size={20} color="white" />
-                </TouchableOpacity>
+                <View style={styles.inputWrapper}>
+                    {/* STT Button (Placeholder) */}
+                    <TouchableOpacity style={styles.micButton} onPress={() => Alert.alert("준비 중", "음성 인식 기능은 준비 중입니다.")}>
+                        <Ionicons name="mic-outline" size={24} color={colors.textSecondary} />
+                    </TouchableOpacity>
+
+                    <TextInput
+                        style={styles.input}
+                        placeholder="메시지를 입력하세요..."
+                        value={inputText}
+                        onChangeText={setInputText}
+                        onSubmitEditing={sendMessage}
+                        multiline
+                    />
+                    <TouchableOpacity style={styles.sendButton} onPress={sendMessage} disabled={loading}>
+                        <Ionicons name="send" size={20} color="white" />
+                    </TouchableOpacity>
+
+                </View>
             </KeyboardAvoidingView>
 
             <Modal
@@ -462,7 +504,16 @@ export default function ChatScreen({ messages, setMessages, healthProfile, setMe
                         </View>
 
                         <View style={styles.recipeCard}>
-                            <Text style={styles.recipePreview}>{selectedRecipeToAdd}</Text>
+                            <Text style={styles.inputLabel}>메뉴 이름 (수정 가능)</Text>
+                            <TextInput
+                                style={styles.titleInput}
+                                value={selectedRecipeToAdd}
+                                onChangeText={setSelectedRecipeToAdd}
+                                placeholder="메뉴 이름을 입력하세요"
+                            />
+                            <Text style={styles.recipePreviewHint}>
+                                * 레시피 상세 내용은 자동으로 저장되어 캘린더에서 볼 수 있습니다.
+                            </Text>
                         </View>
 
                         <Text style={styles.inputLabel}>날짜 선택</Text>
@@ -500,8 +551,8 @@ export default function ChatScreen({ messages, setMessages, healthProfile, setMe
                             <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.cancelButton}>
                                 <Text style={styles.cancelButtonText}>취소</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={confirmAddToPlan} style={styles.confirmButton}>
-                                <Text style={styles.confirmButtonText}>저장하기</Text>
+                            <TouchableOpacity onPress={confirmAddToPlan} style={[styles.confirmButton, { backgroundColor: '#8B5CF6' }]}>
+                                <Text style={styles.confirmButtonText}>저장 (TEST)</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -535,10 +586,28 @@ const styles = StyleSheet.create({
     actionIconButton: { padding: 4 },
     loadingContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12 },
     loadingText: { marginLeft: 10, color: '#6B7280', fontSize: 14 },
-    inputContainer: { flexDirection: 'row', padding: 12, backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#E5E7EB', alignItems: 'center' },
-    micButton: { padding: 10, marginRight: 8 },
-    input: { flex: 1, backgroundColor: '#F3F4F6', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 16, marginRight: 10, maxHeight: 100 },
-    sendButton: { backgroundColor: colors.secondary, borderRadius: 20, width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
+    inputContainer: {
+        backgroundColor: 'white',
+        borderTopWidth: 1,
+        borderTopColor: '#E5E7EB',
+        paddingBottom: Platform.OS === 'ios' ? 20 : 0
+    },
+    optionsBar: {
+        flexDirection: 'row',
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 8,
+        gap: 8,
+    },
+    inputWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingBottom: 12,
+    },
+    micButton: { padding: 10, marginRight: 4 },
+    input: { flex: 1, backgroundColor: '#F3F4F6', borderRadius: 24, paddingHorizontal: 16, paddingVertical: 10, fontSize: 16, marginRight: 8, maxHeight: 100 },
+    sendButton: { backgroundColor: colors.secondary, borderRadius: 24, width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
     emptyStateContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
     logoContainer: { width: 80, height: 80, backgroundColor: colors.primary, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
     emptyTitle: { fontSize: 24, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 },
@@ -550,6 +619,8 @@ const styles = StyleSheet.create({
     modalHeaderTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
     modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
     recipeCard: { backgroundColor: '#F9FAFB', padding: 16, borderRadius: 12, borderLeftWidth: 4, borderLeftColor: colors.primary, marginBottom: 20 },
+    titleInput: { fontSize: 16, color: '#1F2937', fontWeight: 'bold', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', paddingVertical: 4, marginBottom: 8 },
+    recipePreviewHint: { fontSize: 12, color: '#6B7280', marginTop: 4 },
     recipePreview: { fontSize: 16, color: '#374151', fontWeight: '500' },
     inputLabel: { fontSize: 14, fontWeight: 'bold', color: '#4B5563', marginBottom: 8, marginLeft: 4 },
     selectionRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
@@ -589,4 +660,42 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: 'white',
     },
+    fridgeChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F9FAFB',
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        borderRadius: 20,
+        gap: 6,
+        borderWidth: 2,
+        borderColor: '#E5E7EB',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    fridgeChipActive: {
+        backgroundColor: colors.primary,
+        borderColor: colors.primary,
+        shadowColor: colors.primary,
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    fridgeChipText: {
+        fontSize: 13,
+        color: '#6B7280',
+        fontWeight: '700',
+        letterSpacing: -0.2
+    },
+    fridgeChipTextActive: {
+    },
+    toggleDotOn: {
+        backgroundColor: colors.primary
+    },
+    toggleDotOff: {
+        backgroundColor: '#D1D5DB'
+    }
 });

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, TextInput, Modal, SafeAreaView, Platform, KeyboardAvoidingView } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, TextInput, Modal, SafeAreaView, Platform, KeyboardAvoidingView, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 
@@ -9,52 +9,52 @@ const SECTIONS = [
         key: 'allergies',
         title: '알레르기',
         icon: 'warning-outline',
-        color: '#dc2626', // Red-600
-        bgColor: '#fef2f2', // Red-50
-        borderColor: '#fecaca', // Red-200
+        color: '#dc2626', // 레드 600
+        bgColor: '#fef2f2', // 레드 50
+        borderColor: '#fecaca', // 레드 200
         description: 'AI가 알레르기 식품을 피한 레시피를 추천합니다'
     },
     {
         key: 'chronicConditions',
         title: '만성 질환',
         icon: 'medkit-outline',
-        color: '#d97706', // Amber-600
-        bgColor: '#fffbeb', // Amber-50
-        borderColor: '#fde68a', // Amber-200
+        color: '#d97706', // 앰버 600
+        bgColor: '#fffbeb', // 앰버 50
+        borderColor: '#fde68a', // 앰버 200
         description: '건강 상태에 맞는 식단을 제안합니다'
     },
     {
         key: 'dietaryRestrictions',
         title: '식단 제한',
         icon: 'nutrition-outline',
-        color: '#059669', // Emerald-600
-        bgColor: '#ecfdf5', // Emerald-50
-        borderColor: '#a7f3d0', // Emerald-200
+        color: '#059669', // 에메랄드 600
+        bgColor: '#ecfdf5', // 에메랄드 50
+        borderColor: '#a7f3d0', // 에메랄드 200
         description: '식단 요구사항에 맞는 레시피만 추천합니다'
     },
     {
         key: 'medications',
         title: '복용 중인 약',
         icon: 'bandage-outline',
-        color: '#2563eb', // Blue-600
-        bgColor: '#eff6ff', // Blue-50
-        borderColor: '#bfdbfe', // Blue-200
+        color: '#2563eb', // 블루 600
+        bgColor: '#eff6ff', // 블루 50
+        borderColor: '#bfdbfe', // 블루 200
         description: '약물과 상호작용할 수 있는 음식을 피합니다'
     },
     {
-        key: 'goals', // Changed key from 'healthGoals' to 'goals' to match existing state in App.js if needed, or update App.js. Assuming App.js uses 'goals' based on previous context.
+        key: 'goals', // App.js의 기존 상태 키와 맞춤
         title: '건강 목표',
         icon: 'fitness-outline',
-        color: '#9333ea', // Purple-600
-        bgColor: '#faf5ff', // Purple-50
-        borderColor: '#e9d5ff', // Purple-200
+        color: '#9333ea', // 퍼플 600
+        bgColor: '#faf5ff', // 퍼플 50
+        borderColor: '#e9d5ff', // 퍼플 200
         description: '목표 달성을 위한 맞춤 식단을 제공합니다'
     }
 ];
 
-export default function HealthScreen({ healthProfile, setHealthProfile, isSidebarOpen, onToggleSidebar }) {
+export default function HealthScreen({ healthProfile, setHealthProfile, isSidebarOpen, onToggleSidebar, webMode = false }) {
     const [isEditing, setIsEditing] = useState(false);
-    const [inputStates, setInputStates] = useState({}); // Local state for inputs keyed by section
+    const [inputStates, setInputStates] = useState({}); // 섹션별 입력 상태
 
     const handleAddItem = (sectionKey) => {
         const text = inputStates[sectionKey];
@@ -78,12 +78,27 @@ export default function HealthScreen({ healthProfile, setHealthProfile, isSideba
         setInputStates(prev => ({ ...prev, [sectionKey]: text }));
     };
 
-    const renderSection = (section) => {
-        const items = healthProfile[section.key] || [];
+    const AnimatedSectionCard = ({ section, items }) => {
+        const hoverAnim = React.useRef(new Animated.Value(1)).current;
+
+        const handleMouseEnter = () => {
+            if (Platform.OS === 'web') {
+                Animated.spring(hoverAnim, { toValue: 1.02, friction: 6, useNativeDriver: true }).start();
+            }
+        };
+
+        const handleMouseLeave = () => {
+            if (Platform.OS === 'web') {
+                Animated.spring(hoverAnim, { toValue: 1, friction: 6, useNativeDriver: true }).start();
+            }
+        };
 
         return (
-            <View key={section.key} style={[styles.card, { borderColor: section.borderColor }]}>
-                {/* Section Header */}
+            <Animated.View
+                style={[styles.card, { borderColor: section.borderColor, transform: [{ scale: hoverAnim }] }]}
+                {...(Platform.OS === 'web' ? { onMouseEnter: handleMouseEnter, onMouseLeave: handleMouseLeave } : {})}
+            >
+                {/* 섹션 헤더 */}
                 <View style={[styles.sectionHeader, { backgroundColor: section.bgColor }]}>
                     <View style={styles.headerIconContainer}>
                         <Ionicons name={section.icon} size={24} color={section.color} />
@@ -94,7 +109,7 @@ export default function HealthScreen({ healthProfile, setHealthProfile, isSideba
                     </View>
                 </View>
 
-                {/* Items List */}
+                {/* 항목 목록 */}
                 <View style={styles.sectionBody}>
                     <View style={styles.tagsContainer}>
                         {items.length === 0 ? (
@@ -113,7 +128,7 @@ export default function HealthScreen({ healthProfile, setHealthProfile, isSideba
                         )}
                     </View>
 
-                    {/* Add Item Input (Visible when editing) */}
+                    {/* 수정 중일 때 보이는 항목 추가 입력창 */}
                     {isEditing && (
                         <View style={styles.inputContainer}>
                             <TextInput
@@ -133,17 +148,22 @@ export default function HealthScreen({ healthProfile, setHealthProfile, isSideba
                         </View>
                     )}
                 </View>
-            </View>
+            </Animated.View>
         );
+    };
+
+    const renderSection = (section) => {
+        const items = healthProfile[section.key] || [];
+        return <AnimatedSectionCard key={section.key} section={section} items={items} />;
     };
 
     return (
         <SafeAreaView style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
+            {/* 헤더 */}
+            {!webMode && <View style={styles.header}>
                 <View style={styles.headerLeft}>
                     <TouchableOpacity onPress={onToggleSidebar} style={styles.menuButton}>
-                        <Ionicons name="menu" size={24} color={colors.text} />
+                        <Ionicons name="menu" size={24} color={colors.primary} />
                     </TouchableOpacity>
                     <View>
                         <Text style={styles.headerTitle}>나의 건강정보</Text>
@@ -158,7 +178,24 @@ export default function HealthScreen({ healthProfile, setHealthProfile, isSideba
                         {isEditing ? '완료' : '수정'}
                     </Text>
                 </TouchableOpacity>
-            </View>
+            </View>}
+
+            {webMode && (
+                <View style={styles.webActionBar}>
+                    <View>
+                        <Text style={styles.webActionTitle}>건강 조건</Text>
+                        <Text style={styles.webActionSubtitle}>추천에 반영할 정보를 관리하세요</Text>
+                    </View>
+                    <TouchableOpacity
+                        style={[styles.editButton, isEditing ? styles.saveButton : styles.editButtonOutline]}
+                        onPress={() => setIsEditing(!isEditing)}
+                    >
+                        <Text style={[styles.editButtonText, isEditing && styles.saveButtonText]}>
+                            {isEditing ? '완료' : '수정'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            )}
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -169,7 +206,7 @@ export default function HealthScreen({ healthProfile, setHealthProfile, isSideba
                     contentContainerStyle={styles.contentContainer}
                     showsVerticalScrollIndicator={false}
                 >
-                    {/* Info Card */}
+                    {/* 안내 카드 */}
                     <View style={styles.infoCard}>
                         <View style={styles.infoIconBox}>
                             <Ionicons name="information" size={24} color="white" />
@@ -182,7 +219,7 @@ export default function HealthScreen({ healthProfile, setHealthProfile, isSideba
                         </View>
                     </View>
 
-                    {/* Render All Sections */}
+                    {/* 전체 섹션 렌더링 */}
                     {SECTIONS.map(renderSection)}
 
                 </ScrollView>
@@ -194,35 +231,43 @@ export default function HealthScreen({ healthProfile, setHealthProfile, isSideba
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F9FAFB', // Gray-50
+        backgroundColor: '#F9FAFB', // 그레이 50
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        backgroundColor: 'white',
+        paddingHorizontal: 20,
+        paddingVertical: 14,
+        backgroundColor: '#FFF7ED',
         borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
-        paddingTop: Platform.OS === 'android' ? 40 : 12,
+        borderBottomColor: '#FED7AA',
+        paddingTop: Platform.OS === 'android' ? 40 : 14,
     },
     headerLeft: {
         flexDirection: 'row',
         alignItems: 'center',
     },
     menuButton: {
-        padding: 8,
-        marginRight: 8,
+        width: 40,
+        height: 40,
+        borderRadius: 14,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
+        borderWidth: 1,
+        borderColor: '#FED7AA',
     },
     headerTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#111827',
+        fontSize: 20,
+        fontWeight: '800',
+        color: '#9A3412',
     },
     headerSubtitle: {
         fontSize: 12,
-        color: '#6B7280',
+        color: '#EA580C',
+        marginTop: 2,
     },
     editButton: {
         paddingHorizontal: 16,
@@ -235,12 +280,32 @@ const styles = StyleSheet.create({
         borderColor: '#E5E7EB',
     },
     saveButton: {
-        backgroundColor: '#10B981', // Emerald-500
+        backgroundColor: '#10B981', // 에메랄드 500
     },
     editButtonText: {
         fontSize: 14,
         fontWeight: '600',
         color: '#374151',
+    },
+    webActionBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 24,
+        paddingVertical: 14,
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#EEF0F3',
+    },
+    webActionTitle: {
+        fontSize: 15,
+        fontWeight: '800',
+        color: '#202124',
+    },
+    webActionSubtitle: {
+        fontSize: 12,
+        color: '#5F6368',
+        marginTop: 2,
     },
     saveButtonText: {
         color: 'white',
@@ -255,7 +320,7 @@ const styles = StyleSheet.create({
     infoCard: {
         flexDirection: 'row',
         alignItems: 'start',
-        backgroundColor: '#F43F5E', // Rose-500 (matched to web gradient start)
+        backgroundColor: '#F43F5E', // 로즈 500
         borderRadius: 16,
         padding: 20,
         marginBottom: 24,
@@ -282,7 +347,7 @@ const styles = StyleSheet.create({
     },
     infoCardText: {
         fontSize: 14,
-        color: '#FFE4E6', // Rose-100
+        color: '#FFE4E6', // 로즈 100
         lineHeight: 20,
     },
     card: {

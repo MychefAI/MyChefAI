@@ -25,39 +25,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        String path = request.getRequestURI();
-        System.out.println("Processing Request: " + request.getMethod() + " " + path);
-
         try {
             String jwt = getJwtFromRequest(request);
-            System.out.println("Extracted JWT: "
-                    + (jwt != null ? "Present (" + jwt.substring(0, Math.min(10, jwt.length())) + "...)" : "Null"));
 
             if (StringUtils.hasText(jwt)) {
                 boolean isValid = tokenProvider.validateToken(jwt);
-                System.out.println("Token Validity: " + isValid);
 
                 if (isValid) {
                     String userId = tokenProvider.getUserId(jwt);
-                    System.out.println("User ID from Token: " + userId);
 
-                    // For simplicity, we create a simple authentication token with the user ID
+                    // 간단한 검증 처리를 위해 사용자 식별자(ID)를 기반으로 인증 객체 생성
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                             userId, null, Collections.emptyList());
 
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                     SecurityContextHolder.getContext().setAuthentication(authentication);
-                    System.out.println("Security Context Set Successfully");
-                } else {
-                    System.out.println("Token Validation Failed");
                 }
-            } else {
-                System.out.println("No Token Found in Request");
             }
         } catch (Exception ex) {
-            System.err.println("Authentication Error: " + ex.getMessage());
-            ex.printStackTrace();
             logger.error("Could not set user authentication in security context", ex);
         }
 

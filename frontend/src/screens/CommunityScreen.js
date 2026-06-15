@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Image, ActivityIndicator, RefreshControl, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Image, ActivityIndicator, RefreshControl, Platform, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { colors } from '../theme/colors';
 import config from '../config';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '../context/AuthContext';
 
-export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
+export default function CommunityScreen({ onToggleSidebar, onNavigate, user, webMode = false }) {
+    const { token } = useAuth();
     const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState('recommendation'); // 'recommendation' or 'feed'
     const [aiRecommendations, setAiRecommendations] = useState([]);
@@ -16,7 +18,7 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
-    // Mock Data for Discover Tab
+    // 추천 탭 임시 데이터
     const featuredRecipe = {
         id: 101,
         title: "트러플 버섯 리조또",
@@ -34,12 +36,13 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
         { id: 3, title: "연어 포케", rating: 4.6, time: 20, image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80" },
     ];
 
-    // Fetch AI Recommendations
+    // AI 추천 목록 조회
     const fetchAIRecommendations = async () => {
-        if (!user?.id) return;
+        if (!user?.id || !token) return;
         try {
             const response = await axios.get(
-                `${config.API_BASE_URL}/community/recommendations?userId=${user.id}`
+                `${config.API_BASE_URL}/community/recommendations`,
+                { headers: { Authorization: `Bearer ${token}` } }
             );
             setAiRecommendations(response.data);
         } catch (error) {
@@ -47,11 +50,11 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
         }
     };
 
-    // Fetch popular posts (timeframe based)
+    // 기간 기준 인기 게시글 조회
     const fetchPopularPosts = async () => {
         try {
             const response = await axios.get(
-                `${config.API_BASE_URL}/community/posts/popular?currentUserId=${user?.id || ''}&limit=10&timeframe=${popularTimeframe}`
+                `${config.API_BASE_URL}/community/posts/popular?limit=10&timeframe=${popularTimeframe}`
             );
             setPopularPosts(response.data);
         } catch (error) {
@@ -59,11 +62,11 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
         }
     };
 
-    // Fetch Community Feed (User Posts)
+    // 커뮤니티 피드 조회
     const fetchFeed = async () => {
         try {
             const response = await axios.get(
-                `${config.API_BASE_URL}/community/posts?currentUserId=${user?.id || ''}`
+                `${config.API_BASE_URL}/community/posts`
             );
             setFeedPosts(response.data);
         } catch (error) {
@@ -90,7 +93,7 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
         fetchAll();
     };
 
-    // Helper Functions
+    // 보조 함수
     const getTimeAgo = (dateString) => {
         const now = new Date();
         const past = new Date(dateString);
@@ -106,31 +109,63 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
         return past.toLocaleDateString('ko-KR');
     };
 
-    const renderRecipeCard = (item, isPopular = false) => (
-        <TouchableOpacity key={item.id} style={styles.card} onPress={() => onNavigate && onNavigate('recipe-detail', item)}>
-            <Image source={{ uri: item.image }} style={styles.cardImage} />
-            <View style={styles.cardContent}>
-                <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-                <View style={styles.cardMeta}>
-                    {isPopular ? (
-                        <>
-                            <Ionicons name="eye-outline" size={14} color={colors.textSecondary} />
-                            <Text style={styles.metaText}>{item.views}</Text>
-                            <Ionicons name="heart-outline" size={14} color={colors.accent} style={{ marginLeft: 8 }} />
-                            <Text style={styles.metaText}>{item.likes}</Text>
-                        </>
-                    ) : (
-                        <>
-                            <Ionicons name="star" size={14} color="#F59E0B" />
-                            <Text style={styles.metaText}>{item.rating}</Text>
-                            <Ionicons name="time-outline" size={14} color={colors.textSecondary} style={{ marginLeft: 8 }} />
-                            <Text style={styles.metaText}>{item.time}분</Text>
-                        </>
-                    )}
-                </View>
-            </View>
-        </TouchableOpacity>
-    );
+    const AnimatedRecipeCard = ({ item, isPopular }) => {
+        const hoverAnim = React.useRef(new Animated.Value(1)).current;
+
+        const handleMouseEnter = () => {
+            if (Platform.OS === 'web') {
+                Animated.spring(hoverAnim, { toValue: 1.05, friction: 5, useNativeDriver: true }).start();
+            }
+        };
+
+        const handleMouseLeave = () => {
+            if (Platform.OS === 'web') {
+                Animated.spring(hoverAnim, { toValue: 1, friction: 5, useNativeDriver: true }).start();
+            }
+        };
+
+        return (
+            <Animated.View style={[{ transform: [{ scale: hoverAnim }] }]}>
+                <TouchableOpacity key={item.id} style={[styles.card, webMode && styles.webRecipeCard]} onPress={() => onNavigate && onNavigate('recipe-detail', item)}
+                    activeOpacity={0.9}
+                    {...(Platform.OS === 'web' ? { onMouseEnter: handleMouseEnter, onMouseLeave: handleMouseLeave } : {})}
+                >
+                    {/* 이미지가 없을 때 기본 이미지 사용 */}
+                    <Image source={{ uri: item.imageUrl || item.image || 'https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=800&q=80' }} style={styles.cardImage} />
+                    <View style={styles.cardContent}>
+                        {item.score && (
+                            <View style={styles.aiBadge}>
+                                <Text style={styles.aiBadgeText}>AI Score: {Math.round(item.score)}</Text>
+                            </View>
+                        )}
+                        <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+
+                        {item.reason ? (
+                            <Text style={styles.recoReason} numberOfLines={2}>{item.reason}</Text>
+                        ) : (
+                            <View style={styles.cardMeta}>
+                                {isPopular ? (
+                                    <>
+                                        <Ionicons name="heart" size={14} color={colors.error} />
+                                        <Text style={styles.metaText}>{item.likeCount || item.likes || 0}</Text>
+                                        <Ionicons name="chatbubble" size={14} color={colors.textSecondary} style={{ marginLeft: 8 }} />
+                                        <Text style={styles.metaText}>{item.commentCount || 0}</Text>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Ionicons name="star" size={14} color="#F59E0B" />
+                                        <Text style={styles.metaText}>{item.rating}</Text>
+                                        <Ionicons name="time-outline" size={14} color={colors.textSecondary} style={{ marginLeft: 8 }} />
+                                        <Text style={styles.metaText}>{item.time}분</Text>
+                                    </>
+                                )}
+                            </View>
+                        )}
+                    </View>
+                </TouchableOpacity>
+            </Animated.View>
+        );
+    };
 
     const renderUserPostCard = (post) => (
         <TouchableOpacity
@@ -141,7 +176,7 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
             {post.imageUrl && (
                 <Image source={{ uri: post.imageUrl }} style={styles.postCardImage} />
             )}
-            <View style={styles.postCardContent}>
+            <View style={styles.postCardBody}>
                 <View style={styles.postCardHeader}>
                     <View style={styles.postAuthor}>
                         <View style={styles.postAvatar}>
@@ -152,7 +187,7 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
                     <Text style={styles.postTime}>{getTimeAgo(post.createdAt)}</Text>
                 </View>
                 <Text style={styles.postCardTitle} numberOfLines={2}>{post.title}</Text>
-                <Text style={styles.postCardContent} numberOfLines={2}>{post.content}</Text>
+                <Text style={styles.postCardExcerpt} numberOfLines={2}>{post.content}</Text>
                 <View style={styles.postCardFooter}>
                     <View style={styles.postStat}>
                         <Ionicons name="heart-outline" size={16} color={colors.textSecondary} />
@@ -202,79 +237,101 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
     );
 
     return (
-        <View style={styles.container}>
-            {/* Header */}
-            <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}>
-                <TouchableOpacity onPress={onToggleSidebar} style={{ marginRight: 12 }}>
-                    <Ionicons name="menu" size={28} color={colors.text} />
-                </TouchableOpacity>
-                <View style={styles.headerTitleContainer}>
-                    <Text style={styles.headerTitle}>커뮤니티</Text>
+        <View style={[styles.container, webMode && styles.webContainer]}>
+            {/* 헤더 */}
+            {!webMode && <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 40 : 14) }]}>
+                <View style={styles.headerLeft}>
+                    <TouchableOpacity onPress={onToggleSidebar} style={styles.menuButton}>
+                        <Ionicons name="menu" size={24} color={colors.primary} />
+                    </TouchableOpacity>
+                    <View style={styles.headerTitleContainer}>
+                        <Text style={styles.headerTitle}>커뮤니티</Text>
+                        <Text style={styles.headerSubtitle}>함께 나누는 건강한 식탁</Text>
+                    </View>
                 </View>
-                <TouchableOpacity onPress={() => onNavigate && onNavigate('search')}>
-                    <Ionicons name="search" size={24} color={colors.text} />
+                <TouchableOpacity style={styles.headerActionButton} onPress={() => onNavigate && onNavigate('search')}>
+                    <Ionicons name="search" size={20} color={colors.primary} />
                 </TouchableOpacity>
+            </View>}
+
+            {/* 탭 */}
+            <View style={[styles.tabContainer, webMode && styles.webTabContainer]}>
+                <View style={[styles.tabSurface, webMode && styles.webTabSurface]}>
+                    <TouchableOpacity
+                        style={[styles.tab, webMode && styles.webTab, activeTab === 'recommendation' && styles.activeTab, webMode && activeTab === 'recommendation' && styles.webActiveTab]}
+                        onPress={() => setActiveTab('recommendation')}
+                    >
+                        <Text style={[styles.tabText, webMode && styles.webTabText, activeTab === 'recommendation' && styles.activeTabText, webMode && activeTab === 'recommendation' && styles.webActiveTabText]}>추천</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.tab, webMode && styles.webTab, activeTab === 'feed' && styles.activeTab, webMode && activeTab === 'feed' && styles.webActiveTab]}
+                        onPress={() => setActiveTab('feed')}
+                    >
+                        <Text style={[styles.tabText, webMode && styles.webTabText, activeTab === 'feed' && styles.activeTabText, webMode && activeTab === 'feed' && styles.webActiveTabText]}>피드</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
-            {/* Tabs */}
-            <View style={styles.tabContainer}>
-                <TouchableOpacity
-                    style={[styles.tab, activeTab === 'recommendation' && styles.activeTab]}
-                    onPress={() => setActiveTab('recommendation')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'recommendation' && styles.activeTabText]}>✨ 추천</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.tab, activeTab === 'feed' && styles.activeTab]}
-                    onPress={() => setActiveTab('feed')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'feed' && styles.activeTabText]}>📱 피드</Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* Content */}
+            {/* 콘텐츠 */}
             <ScrollView
                 style={styles.feed}
+                contentContainerStyle={webMode && styles.webFeedContent}
                 showsVerticalScrollIndicator={false}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             >
                 {activeTab === 'recommendation' ? (
-                    <View style={{ paddingBottom: 40 }}>
-                        {/* AI Section */}
+                    <View style={[{ paddingBottom: 40 }, webMode && styles.webRecommendationLayout]}>
+                        {webMode && (
+                            <View style={styles.webHeroPanel}>
+                                <View style={styles.webHeroCopy}>
+                                    <Text style={styles.webHeroKicker}>추천</Text>
+                                    <Text style={styles.webHeroTitle}>오늘의 식탁 아이디어</Text>
+                                    <Text style={styles.webHeroText}>
+                                        내 냉장고와 건강정보를 기준으로 고른 메뉴와 커뮤니티 인기 레시피를 차분하게 둘러보세요.
+                                    </Text>
+                                </View>
+                                <TouchableOpacity style={styles.webHeroButton} onPress={() => onNavigate && onNavigate('chat')}>
+                                    <Text style={styles.webHeroButtonText}>AI에게 묻기</Text>
+                                    <Ionicons name="arrow-forward" size={16} color="white" />
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                        {/* AI 추천 영역 */}
                         <View style={styles.section}>
                             <View style={styles.sectionHeader}>
-                                <Text style={styles.sectionTitle}>맞춤 추천 레시피 (AI PICK) 👨‍🍳</Text>
+                                <Text style={styles.sectionTitle}>맞춤 추천 레시피 (AI PICK)</Text>
                             </View>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+                            {webMode ? (
+                                <View style={styles.webRecipeGrid}>
+                                    {aiRecommendations.length > 0 ? (
+                                        aiRecommendations.slice(0, 6).map(reco => (
+                                            <AnimatedRecipeCard key={reco.id || reco.recipeId} item={{ ...reco, id: reco.recipeId || reco.id }} />
+                                        ))
+                                    ) : (
+                                        <View style={styles.webEmptySmall}>
+                                            <Text style={styles.emptyText}>냉장고 재료를 추가해보세요!</Text>
+                                        </View>
+                                    )}
+                                </View>
+                            ) : (
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
                                 {aiRecommendations.length > 0 ? (
                                     aiRecommendations.map(reco => (
-                                        <TouchableOpacity
-                                            key={reco.id}
-                                            style={[styles.card, { width: 200 }]}
-                                            onPress={() => onNavigate && onNavigate('recipe-detail', { id: reco.recipeId })}
-                                        >
-                                            <Image source={{ uri: reco.imageUrl || 'https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=400&q=80' }} style={[styles.cardImage, { height: 120 }]} />
-                                            <View style={styles.cardContent}>
-                                                <View style={styles.aiBadge}>
-                                                    <Text style={styles.aiBadgeText}>AI Score: {Math.round(reco.score)}</Text>
-                                                </View>
-                                                <Text style={styles.cardTitle} numberOfLines={1}>{reco.title}</Text>
-                                                <Text style={styles.recoReason} numberOfLines={2}>{reco.reason}</Text>
-                                            </View>
-                                        </TouchableOpacity>
+                                        <AnimatedRecipeCard key={reco.id || reco.recipeId} item={{ ...reco, id: reco.recipeId || reco.id }} />
                                     ))
                                 ) : (
                                     <View style={styles.emptySmall}>
                                         <Text style={styles.emptyText}>냉장고 재료를 추가해보세요!</Text>
                                     </View>
                                 )}
-                            </ScrollView>
+                                </ScrollView>
+                            )}
                         </View>
 
-                        {/* Popular Section */}
+                        {/* 인기 요리 영역 */}
                         <View style={styles.section}>
                             <View style={styles.sectionHeader}>
-                                <Text style={styles.sectionTitle}>인기 요리 🔥</Text>
+                                <Text style={styles.sectionTitle}>인기 요리</Text>
                                 <View style={styles.timeframeContainer}>
                                     {['daily', 'weekly', 'monthly'].map(tf => (
                                         <TouchableOpacity
@@ -290,38 +347,32 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
                                 </View>
                             </View>
 
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+                            {webMode ? (
+                                <View style={styles.webRecipeGrid}>
+                                    {popularPosts.length > 0 ? (
+                                        popularPosts.slice(0, 6).map(post => (
+                                            <AnimatedRecipeCard key={post.id} item={post} isPopular={true} />
+                                        ))
+                                    ) : (
+                                        <Text style={styles.emptyText}>게시글이 없습니다</Text>
+                                    )}
+                                </View>
+                            ) : (
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
                                 {popularPosts.length > 0 ? (
                                     popularPosts.map(post => (
-                                        <TouchableOpacity
-                                            key={post.id}
-                                            style={styles.card}
-                                            onPress={() => onNavigate && onNavigate('post-detail', post)}
-                                        >
-                                            <Image
-                                                source={{ uri: post.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80' }}
-                                                style={styles.cardImage}
-                                            />
-                                            <View style={styles.cardContent}>
-                                                <Text style={styles.cardTitle} numberOfLines={1}>{post.title}</Text>
-                                                <View style={styles.cardMeta}>
-                                                    <Ionicons name="heart" size={14} color={colors.error} />
-                                                    <Text style={styles.metaText}>{post.likeCount || 0}</Text>
-                                                    <Ionicons name="chatbubble" size={14} color={colors.textSecondary} style={{ marginLeft: 8 }} />
-                                                    <Text style={styles.metaText}>{post.commentCount || 0}</Text>
-                                                </View>
-                                            </View>
-                                        </TouchableOpacity>
+                                        <AnimatedRecipeCard key={post.id} item={post} isPopular={true} />
                                     ))
                                 ) : (
                                     <Text style={styles.emptyText}>게시글이 없습니다</Text>
                                 )}
-                            </ScrollView>
+                                </ScrollView>
+                            )}
                         </View>
                     </View>
                 ) : (
                     <View style={{ paddingBottom: 40 }}>
-                        {/* Feed Tab (SNS Style) */}
+                        {/* 피드 탭 */}
                         <View style={styles.createPostContainer}>
                             <TouchableOpacity
                                 style={styles.createPostButton}
@@ -343,7 +394,7 @@ export default function CommunityScreen({ onToggleSidebar, onNavigate, user }) {
                                 <Text style={styles.emptySubtitle}>첫 번째 소식을 전해보세요!</Text>
                             </View>
                         ) : (
-                            <View style={styles.postsContainer}>
+                            <View style={[styles.postsContainer, webMode && styles.webPostsContainer]}>
                                 {feedPosts.map(post => renderUserPostCard(post))}
                             </View>
                         )}
@@ -359,29 +410,86 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: colors.background,
     },
+    webContainer: {
+        backgroundColor: '#FFFFFF',
+    },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingBottom: 12,
-        backgroundColor: colors.surface,
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingBottom: 14,
+        backgroundColor: '#FFF7ED',
         borderBottomWidth: 1,
-        borderBottomColor: colors.border,
+        borderBottomColor: '#FED7AA',
+    },
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    menuButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 14,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
+        borderWidth: 1,
+        borderColor: '#FED7AA',
     },
     headerTitleContainer: {
         flex: 1,
-        alignItems: 'center',
     },
     headerTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: colors.text,
+        fontSize: 20,
+        fontWeight: '800',
+        color: '#9A3412',
+    },
+    headerSubtitle: {
+        fontSize: 12,
+        color: '#EA580C',
+        marginTop: 2,
+    },
+    headerActionButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 14,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#FED7AA',
     },
     tabContainer: {
         flexDirection: 'row',
         backgroundColor: 'white',
         borderBottomWidth: 1,
         borderBottomColor: '#E5E7EB',
+    },
+    tabSurface: {
+        flex: 1,
+        flexDirection: 'row',
+    },
+    webTabContainer: {
+        paddingHorizontal: 32,
+        paddingTop: 10,
+        paddingBottom: 10,
+        height: 60,
+        alignItems: 'center',
+        borderBottomColor: '#EEF0F3',
+        justifyContent: 'flex-start',
+    },
+    webTabSurface: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        padding: 3,
+        borderRadius: 999,
+        backgroundColor: '#F1F3F4',
+        borderWidth: 1,
+        borderColor: '#E8EAED',
     },
     tab: {
         flex: 1,
@@ -390,20 +498,100 @@ const styles = StyleSheet.create({
         borderBottomWidth: 2,
         borderBottomColor: 'transparent',
     },
+    webTab: {
+        flex: 0,
+        minWidth: 78,
+        height: 34,
+        paddingHorizontal: 18,
+        paddingVertical: 0,
+        borderWidth: 0,
+        borderRadius: 999,
+        backgroundColor: 'transparent',
+        justifyContent: 'center',
+    },
     activeTab: {
         borderBottomColor: colors.primary,
+    },
+    webActiveTab: {
+        backgroundColor: '#FFFFFF',
+        ...Platform.select({ web: { boxShadow: '0px 1px 2px rgba(60, 64, 67, 0.18)' } }),
     },
     tabText: {
         fontSize: 16,
         color: colors.textSecondary,
         fontWeight: '600',
     },
+    webTabText: {
+        fontSize: 13,
+        color: '#5F6368',
+        fontWeight: '700',
+    },
     activeTabText: {
         color: colors.primary,
         fontWeight: 'bold',
     },
+    webActiveTabText: {
+        color: '#202124',
+        fontWeight: '700',
+    },
     feed: {
         flex: 1,
+    },
+    webFeedContent: {
+        paddingBottom: 44,
+    },
+    webRecommendationLayout: {
+        paddingHorizontal: 32,
+    },
+    webHeroPanel: {
+        marginTop: 28,
+        marginBottom: 4,
+        minHeight: 132,
+        borderRadius: 12,
+        padding: 24,
+        backgroundColor: '#F8Fafd',
+        borderWidth: 1,
+        borderColor: '#EEF0F3',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    webHeroCopy: {
+        flex: 1,
+        maxWidth: 620,
+    },
+    webHeroKicker: {
+        color: '#5F6368',
+        fontSize: 12,
+        fontWeight: '700',
+        marginBottom: 8,
+    },
+    webHeroTitle: {
+        color: '#202124',
+        fontSize: 28,
+        fontWeight: '600',
+        lineHeight: 36,
+    },
+    webHeroText: {
+        color: '#5F6368',
+        fontSize: 14,
+        lineHeight: 21,
+        marginTop: 10,
+    },
+    webHeroButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: '#111827',
+        paddingHorizontal: 16,
+        paddingVertical: 11,
+        borderRadius: 999,
+        marginLeft: 18,
+    },
+    webHeroButtonText: {
+        color: 'white',
+        fontSize: 13,
+        fontWeight: '700',
     },
     section: {
         marginTop: 24,
@@ -422,6 +610,11 @@ const styles = StyleSheet.create({
     },
     horizontalList: {
         gap: 16,
+    },
+    webRecipeGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 14,
     },
     heroCard: {
         height: 220,
@@ -464,20 +657,27 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
     card: {
-        width: 150,
+        width: 220,
         backgroundColor: 'white',
-        borderRadius: 16,
+        borderRadius: 20,
         overflow: 'hidden',
         borderWidth: 1,
         borderColor: '#E5E7EB',
+        ...Platform.select({ web: { boxShadow: '0px 4px 20px rgba(0,0,0,0.06)' } })
+    },
+    webRecipeCard: {
+        width: '31.5%',
+        minWidth: 220,
+        borderRadius: 12,
+        ...Platform.select({ web: { boxShadow: 'none' } })
     },
     cardImage: {
         width: '100%',
-        height: 100,
+        height: 140,
         backgroundColor: '#F3F4F6',
     },
     cardContent: {
-        padding: 12,
+        padding: 16,
     },
     cardTitle: {
         fontSize: 14,
@@ -550,6 +750,17 @@ const styles = StyleSheet.create({
         borderStyle: 'dashed',
         borderWidth: 1,
         borderColor: colors.border,
+    },
+    webEmptySmall: {
+        flex: 1,
+        minHeight: 112,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderStyle: 'dashed',
+        borderColor: '#CBD5E1',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#F8FAFC',
     },
     createPostContainer: {
         padding: 16,
@@ -652,7 +863,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         padding: 20,
     },
-    // User Post Styles
+    // 사용자 게시글 스타일
     createButtonContainer: {
         padding: 16,
     },
@@ -674,6 +885,13 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingTop: 8,
     },
+    webPostsContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 16,
+        paddingHorizontal: 24,
+        paddingTop: 18,
+    },
     postCard: {
         backgroundColor: colors.surface,
         borderRadius: 12,
@@ -681,13 +899,14 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         borderWidth: 1,
         borderColor: colors.border,
+        ...Platform.select({ web: { width: '48%', marginBottom: 0 } }),
     },
     postCardImage: {
         width: '100%',
         height: 180,
         backgroundColor: colors.border,
     },
-    postCardContent: {
+    postCardBody: {
         padding: 16,
     },
     postCardHeader: {
@@ -724,7 +943,7 @@ const styles = StyleSheet.create({
         color: colors.text,
         marginBottom: 8,
     },
-    postCardContent: {
+    postCardExcerpt: {
         fontSize: 14,
         lineHeight: 20,
         color: colors.textSecondary,

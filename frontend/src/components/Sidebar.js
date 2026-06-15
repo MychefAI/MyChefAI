@@ -1,8 +1,11 @@
 
-import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Modal, Animated } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Modal, Animated, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
+import axios from 'axios';
+import config from '../config';
+import SubscriptionModal from './SubscriptionModal';
 
 const MENU_ITEMS = [
     { id: 'chat', label: 'AI 채팅', icon: 'chatbubbles', color: colors.secondary },
@@ -10,6 +13,8 @@ const MENU_ITEMS = [
     { id: 'fridge', label: '나의 냉장고', icon: 'nutrition', color: '#3B82F6' },
     { id: 'calendar', label: '식단 캘린더', icon: 'calendar', color: colors.primary },
     { id: 'health', label: '나의 건강정보', icon: 'heart', color: colors.health },
+    { id: 'health-checkup', label: '건강검진', icon: 'document-text', color: '#6366F1' },
+    { id: 'account-settings', label: '계정과 개인정보', icon: 'shield-checkmark', color: '#0F766E' },
 ];
 
 import { useAuth } from '../context/AuthContext';
@@ -18,8 +23,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function Sidebar({ isOpen, onClose, currentScreen, onNavigate }) {
     const insets = useSafeAreaInsets();
-    const { user, isLoggedIn, logout } = useAuth();
-    // ...
+    const { user, isLoggedIn, logout, refreshUser } = useAuth();
+
+    // 구독 멤버십 모달 상태
+    const [subscriptionModalVisible, setSubscriptionModalVisible] = useState(false);
 
     return (
         <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
@@ -31,7 +38,14 @@ export default function Sidebar({ isOpen, onClose, currentScreen, onNavigate }) 
                             <Ionicons name="restaurant" size={24} color="white" />
                         </View>
                         <View>
-                            <Text style={styles.title}>{isLoggedIn && user ? user.name : 'MyChefAI'}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <Text style={styles.title}>{isLoggedIn && user ? user.name : 'Salus'}</Text>
+                                {isLoggedIn && user?.grade === 'PLUS' && (
+                                    <View style={styles.inlinePlusBadge}>
+                                        <Text style={styles.inlinePlusBadgeText}>PLUS</Text>
+                                    </View>
+                                )}
+                            </View>
                             <Text style={styles.subtitle}>{isLoggedIn && user ? user.email : '당신만의 AI 요리사'}</Text>
                         </View>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -46,7 +60,7 @@ export default function Sidebar({ isOpen, onClose, currentScreen, onNavigate }) 
                                 style={[
                                     styles.menuItem,
                                     currentScreen === item.id && styles.menuItemSelected,
-                                    currentScreen === item.id && { backgroundColor: item.color + '15' } // 10% opacity
+                                    currentScreen === item.id && { backgroundColor: item.color + '15' } // 10% 투명도로 배경색 처리
                                 ]}
                                 onPress={() => {
                                     onNavigate(item.id);
@@ -74,12 +88,26 @@ export default function Sidebar({ isOpen, onClose, currentScreen, onNavigate }) 
                                 )}
                             </TouchableOpacity>
                         ))}
+
+                        {/* Premium CTA Banner */}
+                        {isLoggedIn && user?.grade !== 'PLUS' && (
+                            <TouchableOpacity
+                                style={styles.premiumBanner}
+                                onPress={() => setSubscriptionModalVisible(true)}
+                            >
+                                <View style={styles.premiumBannerContent}>
+                                    <Ionicons name="sparkles" size={18} color="white" />
+                                    <Text style={styles.premiumBannerText}>플러스로 업그레이드</Text>
+                                </View>
+                                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.7)" />
+                            </TouchableOpacity>
+                        )}
                     </View>
 
                     <View style={styles.footer}>
                         <TouchableOpacity style={[styles.accountButton, { marginBottom: 8 }]} onPress={() => { onNavigate('about'); onClose(); }}>
                             <Ionicons name="information-circle-outline" size={24} color="#4B5563" />
-                            <Text style={styles.accountText}>MyChefAI 정보</Text>
+                            <Text style={styles.accountText}>Salus 정보</Text>
                             <Ionicons name="chevron-forward" size={16} color="#9CA3AF" style={{ marginLeft: 'auto' }} />
                         </TouchableOpacity>
                         {isLoggedIn ? (
@@ -98,6 +126,35 @@ export default function Sidebar({ isOpen, onClose, currentScreen, onNavigate }) 
                 </View>
                 <TouchableOpacity style={styles.overlayTouch} onPress={onClose} />
             </View>
+
+            {/* Subscription Modal */}
+            <SubscriptionModal
+                visible={subscriptionModalVisible}
+                onClose={() => setSubscriptionModalVisible(false)}
+                user={user}
+                onSubscribe={async (impUid, merchantUid) => {
+                    setSubscriptionModalVisible(false);
+                    try {
+                        const response = await axios.post(`${config.API_BASE_URL}/payments/verify`, {
+                            impUid: impUid,
+                            merchantUid: merchantUid
+                        }, {
+                            headers: { Authorization: `Bearer ${user.token}` }
+                        });
+
+                        if (response.data.success) {
+                            Alert.alert("구독 완료", "플러스 회원이 되신 것을 환영합니다.");
+                            await refreshUser(); // 유저 상태 리프레시 (PLUS 뱃지 즉시 반영)
+                            onClose(); // 사이드바 닫기
+                        } else {
+                            Alert.alert("결제 실패", response.data.message || "결제 처리에 실패했습니다.");
+                        }
+                    } catch (error) {
+                        console.error('Payment verification failed:', error);
+                        Alert.alert("검증 에러", error.response?.data?.message || "서버 통신 중 문제가 발생했습니다.");
+                    }
+                }}
+            />
         </Modal>
     );
 }
@@ -117,7 +174,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         height: '100%',
         padding: 20,
-        // Removed border radius for standard side drawer look
+        // 표준적인 슬라이드 메뉴 형태를 위해 테두리 둥글기 제거
         shadowColor: "#000",
         shadowOffset: { width: 2, height: 0 },
         shadowOpacity: 0.1,
@@ -162,7 +219,7 @@ const styles = StyleSheet.create({
         position: 'relative',
     },
     menuItemSelected: {
-        // bg handled inline
+        // 배경색(Background)은 인라인으로 처리함
     },
     iconBox: {
         width: 36,
@@ -203,4 +260,40 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         fontSize: 14,
     },
+    inlinePlusBadge: {
+        backgroundColor: colors.primary,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+        marginLeft: 6,
+    },
+    inlinePlusBadgeText: {
+        color: 'white',
+        fontSize: 10,
+        fontWeight: 'bold',
+    },
+    premiumBanner: {
+        backgroundColor: colors.primary,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 16,
+        borderRadius: 16,
+        marginTop: 12,
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    premiumBannerContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    premiumBannerText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 14,
+    }
 });

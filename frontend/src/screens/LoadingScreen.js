@@ -52,7 +52,7 @@ export default function LoadingScreen() {
                 }
             ]}>
                 <View style={styles.iconCircle}>
-                    <Ionicons name="restaurant" size={60} color="#3B82F6" />
+                    <Ionicons name="restaurant" size={60} color={colors.primary} />
                     <Animated.View style={[
                         styles.spinner,
                         { transform: [{ rotate: rotation }] }
@@ -61,7 +61,7 @@ export default function LoadingScreen() {
                     </Animated.View>
                 </View>
 
-                <Text style={styles.brandName}>MyChefAI</Text>
+                <Text style={styles.brandName}>Salus</Text>
                 <Text style={styles.tagline}>당신을 위한 스마트 인공지능 셰프</Text>
             </Animated.View>
 
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#3B82F6',
+        shadowColor: colors.primary,
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.15,
         shadowRadius: 20,
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: '#3B82F6',
+        backgroundColor: colors.primary,
     },
     brandName: {
         fontSize: 32,
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
         left: 0,
         top: 0,
         height: '100%',
-        backgroundColor: '#3B82F6',
+        backgroundColor: colors.primary,
         width: '60%', // Static for now or can animate
     },
 });

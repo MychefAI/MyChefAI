@@ -16,7 +16,7 @@ import axios from 'axios';
 import { colors } from '../theme/colors';
 import config from '../config';
 
-export default function SearchScreen({ onBack, onNavigate, user }) {
+export default function SearchScreen({ onBack, onNavigate, user, webMode = false }) {
     const insets = useSafeAreaInsets();
     const [searchQuery, setSearchQuery] = useState('');
     const [results, setResults] = useState([]);
@@ -30,7 +30,7 @@ export default function SearchScreen({ onBack, onNavigate, user }) {
         setHasSearched(true);
         try {
             const response = await axios.get(
-                `${config.API_BASE_URL}/community/posts/search?keyword=${encodeURIComponent(searchQuery)}&currentUserId=${user?.id || ''}`
+                `${config.API_BASE_URL}/community/posts/search?keyword=${encodeURIComponent(searchQuery)}`
             );
             setResults(response.data);
         } catch (error) {
@@ -80,10 +80,10 @@ export default function SearchScreen({ onBack, onNavigate, user }) {
 
     return (
         <View style={styles.container}>
-            {/* Header */}
-            <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}>
-                <TouchableOpacity onPress={onBack}>
-                    <Ionicons name="arrow-back" size={24} color={colors.text} />
+            {/* 헤더 */}
+            <View style={[styles.header, webMode && styles.webHeader, { paddingTop: webMode ? 14 : insets.top + (Platform.OS === 'android' ? 40 : 14) }]}>
+                <TouchableOpacity style={styles.headerIconButton} onPress={onBack}>
+                    <Ionicons name="arrow-back" size={22} color={colors.primary} />
                 </TouchableOpacity>
                 <View style={styles.searchContainer}>
                     <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
@@ -108,7 +108,7 @@ export default function SearchScreen({ onBack, onNavigate, user }) {
                 </TouchableOpacity>
             </View>
 
-            {/* Results */}
+            {/* 검색 결과 */}
             {loading ? (
                 <View style={styles.centerContainer}>
                     <ActivityIndicator size="large" color={colors.primary} />
@@ -146,18 +146,35 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingBottom: 12,
-        backgroundColor: colors.surface,
+        paddingHorizontal: 20,
+        paddingBottom: 14,
+        backgroundColor: '#FFF7ED',
         borderBottomWidth: 1,
-        borderBottomColor: colors.border,
+        borderBottomColor: '#FED7AA',
         gap: 12,
+    },
+    webHeader: {
+        backgroundColor: '#FFFFFF',
+        borderBottomColor: '#EEF0F3',
+        paddingHorizontal: 24,
+    },
+    headerIconButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 14,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#FED7AA',
     },
     searchContainer: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.background,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#FED7AA',
         borderRadius: 20,
         paddingHorizontal: 12,
         height: 40,

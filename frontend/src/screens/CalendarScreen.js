@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ScrollView, Modal, Platform, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ScrollView, Modal, Platform, ActivityIndicator, Alert, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import axios from 'axios';
@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 
 const WEEK_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, onToggleSidebar }) {
+export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, onToggleSidebar, webMode = false }) {
     const { isLoggedIn, token } = useAuth();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(null);
@@ -17,7 +17,7 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
     const [activityData, setActivityData] = useState({});
     const [monthlyAnalysis, setMonthlyAnalysis] = useState('');
 
-    // Fetch meal logs, activity logs, and monthly analysis from backend
+    // 식단 기록, 활동 기록, 월간 분석 조회
     useEffect(() => {
         if (isLoggedIn && token) {
             fetchMealLogs();
@@ -72,7 +72,7 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
             });
             const logs = response.data;
 
-            // Transform list to object with date keys
+            // 날짜를 키로 쓰는 객체 형태로 변환
             const transformedData = {};
             logs.forEach(log => {
                 let parsedDetails = {};
@@ -109,7 +109,7 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
     };
 
 
-    // Helper functions
+    // 보조 함수
     const getCalendarDays = () => {
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth();
@@ -158,7 +158,7 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
         setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
     };
 
-    // Render Logic
+    // 렌더링 준비
     const selectedMeal = getMealForDate(selectedDate);
 
     const renderMealSection = (type, icon, title, color, bgColor) => {
@@ -184,7 +184,7 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
             >
                 <View style={styles.mealHeader}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                        <Text style={{ fontSize: 20, marginRight: 8 }}>{icon}</Text>
+                        {icon ? <Text style={{ fontSize: 12, color: color, marginRight: 8 }}>{icon}</Text> : null}
                         <Text style={[styles.mealTitle, { color: color }]}>{title}</Text>
                         {isAi && (
                             <View style={styles.aiBadge}>
@@ -192,7 +192,7 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
                             </View>
                         )}
                         {hasDetails && (
-                            <Text style={{ fontSize: 12, color: color, marginLeft: 8 }}>📖</Text>
+                            <Text style={{ fontSize: 12, color: color, marginLeft: 8 }}>상세</Text>
                         )}
                     </View>
                     {calories && (
@@ -213,22 +213,73 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
         );
     };
 
+    const AnimatedDayCell = ({ date, index, activity, meal, dateKey }) => {
+        const hoverAnim = React.useRef(new Animated.Value(1)).current;
+
+        const handleMouseEnter = () => {
+            if (Platform.OS === 'web' && date) {
+                Animated.spring(hoverAnim, { toValue: 1.1, friction: 5, useNativeDriver: true }).start();
+            }
+        };
+
+        const handleMouseLeave = () => {
+            if (Platform.OS === 'web' && date) {
+                Animated.spring(hoverAnim, { toValue: 1, friction: 5, useNativeDriver: true }).start();
+            }
+        };
+
+        return (
+            <Animated.View style={[styles.dayCellWrapper, { transform: [{ scale: hoverAnim }] }]}>
+                <TouchableOpacity
+                    style={[
+                        styles.dayCell,
+                        date && isToday(date) && styles.todayCell,
+                        date && !isToday(date) && activity && (activity.hasAiInteraction ? styles.aiDayCell : styles.activeDayCell)
+                    ]}
+                    onPress={() => handleDateClick(date)}
+                    disabled={!date}
+                    activeOpacity={0.7}
+                    {...(Platform.OS === 'web' ? { onMouseEnter: handleMouseEnter, onMouseLeave: handleMouseLeave } : {})}
+                >
+                    {date && (
+                        <>
+                            <Text style={[
+                                styles.dayText,
+                                isToday(date) && styles.todayText,
+                                !isToday(date) && index % 7 === 0 && { color: '#EF4444' },
+                                !isToday(date) && index % 7 === 6 && { color: '#3B82F6' },
+                            ]}
+                            >
+                                {date.getDate()}
+                            </Text>
+                            <View style={styles.dotsRow}>
+                                {meal?.breakfast && <View style={[styles.mealDot, { backgroundColor: '#F59E0B' }]} />}
+                                {meal?.lunch && <View style={[styles.mealDot, { backgroundColor: '#10B981' }]} />}
+                                {meal?.dinner && <View style={[styles.mealDot, { backgroundColor: '#3B82F6' }]} />}
+                            </View>
+                        </>
+                    )}
+                </TouchableOpacity>
+            </Animated.View>
+        );
+    };
+
     return (
         <SafeAreaView style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
+            {/* 헤더 */}
+            {!webMode && <View style={styles.header}>
                 <View style={styles.headerLeft}>
                     <TouchableOpacity onPress={onToggleSidebar} style={styles.menuButton}>
-                        <Ionicons name="menu" size={24} color={colors.text} />
+                        <Ionicons name="menu" size={24} color={colors.primary} />
                     </TouchableOpacity>
                     <View>
                         <Text style={styles.headerTitle}>식단 기록</Text>
                         <Text style={styles.headerSubtitle}>매일 먹은 음식을 기록하세요</Text>
                     </View>
                 </View>
-            </View>
+            </View>}
 
-            {/* Calendar Controller */}
+            {/* 달력 컨트롤 */}
             <View style={styles.calendarControls}>
                 <TouchableOpacity onPress={goToPreviousMonth} style={styles.arrowButton}>
                     <Ionicons name="chevron-back" size={24} color={colors.white} />
@@ -242,7 +293,7 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
             </View>
 
             <ScrollView style={styles.content}>
-                {/* Days Header */}
+                {/* 요일 헤더 */}
                 <View style={styles.weekRow}>
                     {WEEK_DAYS.map((day, index) => (
                         <Text
@@ -258,65 +309,29 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
                     ))}
                 </View>
 
-                {/* Days Grid */}
+                {/* 날짜 그리드 */}
                 <View style={styles.daysGrid}>
                     {getCalendarDays().map((date, index) => {
                         const meal = getMealForDate(date);
                         const dateKey = date ? formatDate(date) : null;
                         const activity = dateKey ? activityData[dateKey] : null;
 
-                        return (
-                            <TouchableOpacity
-                                key={index}
-                                style={[
-                                    styles.dayCell,
-                                    date && isToday(date) && styles.todayCell,
-                                    date && !isToday(date) && activity && (activity.hasAiInteraction ? styles.aiDayCell : styles.activeDayCell)
-                                ]}
-                                onPress={() => handleDateClick(date)}
-                                disabled={!date}
-                            >
-                                {date && (
-                                    <>
-                                        <Text style={[
-                                            styles.dayText,
-                                            isToday(date) && styles.todayText,
-                                            !isToday(date) && index % 7 === 0 && { color: '#EF4444' },
-                                            !isToday(date) && index % 7 === 6 && { color: '#3B82F6' },
-                                        ]}
-                                        >
-                                            {date.getDate()}
-                                        </Text>
-                                        <View style={styles.dotsRow}>
-                                            {meal?.breakfast && (
-                                                <View style={[styles.mealDot, { backgroundColor: '#F59E0B' }]} />
-                                            )}
-                                            {meal?.lunch && (
-                                                <View style={[styles.mealDot, { backgroundColor: '#10B981' }]} />
-                                            )}
-                                            {meal?.dinner && (
-                                                <View style={[styles.mealDot, { backgroundColor: '#3B82F6' }]} />
-                                            )}
-                                        </View>
-                                    </>
-                                )}
-                            </TouchableOpacity>
-                        );
+                        return <AnimatedDayCell key={index} date={date} index={index} activity={activity} meal={meal} dateKey={dateKey} />;
                     })}
                 </View>
 
-                {/* Monthly AI Analysis Banner */}
+                {/* 월간 AI 분석 배너 */}
                 {monthlyAnalysis ? (
                     <View style={styles.analysisCard}>
-                        <Text style={styles.analysisTitle}>🤖 AI 셰프의 이번 달 코멘트</Text>
+                        <Text style={styles.analysisTitle}>AI 셰프의 이번 달 코멘트</Text>
                         <Text style={styles.analysisText}>{monthlyAnalysis}</Text>
                     </View>
                 ) : null}
 
-                {/* Stats */}
+                {/* 통계 */}
                 <View style={styles.statsContainer}>
                     <View style={[styles.statCard, { borderColor: '#FCD34D' }]}>
-                        <Text style={styles.statIcon}>🌅</Text>
+                        <Text style={styles.statIcon}>아침</Text>
                         <View>
                             <Text style={styles.statLabel}>아침</Text>
                             <Text style={styles.statValue}>
@@ -325,7 +340,7 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
                         </View>
                     </View>
                     <View style={[styles.statCard, { borderColor: '#34D399' }]}>
-                        <Text style={styles.statIcon}>☀️</Text>
+                        <Text style={styles.statIcon}>점심</Text>
                         <View>
                             <Text style={styles.statLabel}>점심</Text>
                             <Text style={styles.statValue}>
@@ -334,7 +349,7 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
                         </View>
                     </View>
                     <View style={[styles.statCard, { borderColor: '#60A5FA' }]}>
-                        <Text style={styles.statIcon}>🌙</Text>
+                        <Text style={styles.statIcon}>저녁</Text>
                         <View>
                             <Text style={styles.statLabel}>저녁</Text>
                             <Text style={styles.statValue}>
@@ -345,7 +360,7 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
                 </View>
             </ScrollView>
 
-            {/* Meal Detail Modal */}
+            {/* 식단 상세 모달 */}
             <Modal
                 animationType="slide"
                 transparent={true}
@@ -368,7 +383,7 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
                             </TouchableOpacity>
                         </View>
 
-                        {/* Daily Calorie Summary */}
+                        {/* 일일 칼로리 요약 */}
                         {selectedMeal && (
                             <View style={styles.dailySummary}>
                                 <Text style={styles.summaryText}>
@@ -382,14 +397,13 @@ export default function CalendarScreen({ mealData, setMealData, isSidebarOpen, o
                         )}
 
                         <ScrollView contentContainerStyle={styles.mealList}>
-                            {renderMealSection('breakfast', '🌅', '아침', '#F59E0B', '#FFFBEB')}
-                            {renderMealSection('lunch', '☀️', '점심', '#10B981', '#ECFDF5')}
-                            {renderMealSection('dinner', '🌙', '저녁', '#3B82F6', '#EFF6FF')}
+                            {renderMealSection('breakfast', '', '아침', '#F59E0B', '#FFFBEB')}
+                            {renderMealSection('lunch', '', '점심', '#10B981', '#ECFDF5')}
+                            {renderMealSection('dinner', '', '저녁', '#3B82F6', '#EFF6FF')}
 
-                            {/* Snacks */}
+                            {/* 간식 */}
                             <View style={[styles.mealSection, { backgroundColor: '#FDF2F8', borderColor: '#DB277740' }]}>
                                 <View style={styles.mealHeader}>
-                                    <Text style={{ fontSize: 20, marginRight: 8 }}>🍪</Text>
                                     <Text style={[styles.mealTitle, { color: '#DB2777' }]}>간식</Text>
                                 </View>
                                 {selectedMeal?.snacks && selectedMeal.snacks.length > 0 ? (
@@ -430,31 +444,40 @@ const styles = StyleSheet.create({
         backgroundColor: '#F9FAFB',
     },
     header: {
-        padding: 16,
-        backgroundColor: 'white',
+        paddingHorizontal: 20,
+        paddingVertical: 14,
+        backgroundColor: '#FFF7ED',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingTop: Platform.OS === 'android' ? 40 : 16,
+        paddingTop: Platform.OS === 'android' ? 40 : 14,
         borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6'
+        borderBottomColor: '#FED7AA'
     },
     headerLeft: {
         flexDirection: 'row',
         alignItems: 'center',
     },
     menuButton: {
-        padding: 8,
-        marginRight: 8,
+        width: 40,
+        height: 40,
+        borderRadius: 14,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
+        borderWidth: 1,
+        borderColor: '#FED7AA',
     },
     headerTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#111827',
+        fontSize: 20,
+        fontWeight: '800',
+        color: '#9A3412',
     },
     headerSubtitle: {
         fontSize: 12,
-        color: '#6B7280',
+        color: '#EA580C',
+        marginTop: 2,
     },
     calendarControls: {
         backgroundColor: colors.primary,
@@ -502,16 +525,24 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         paddingHorizontal: 24,
     },
-    dayCell: {
+    dayCellWrapper: {
         width: '14.28%', // 100% / 7
         aspectRatio: 1,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    dayCell: {
+        width: '85%',
+        height: '85%',
+        justifyContent: 'center',
+        alignItems: 'center',
         marginVertical: 4,
         borderRadius: 12,
+        ...Platform.select({ web: { cursor: 'pointer' } })
     },
     todayCell: {
         backgroundColor: colors.primary,
+        ...Platform.select({ web: { boxShadow: '0px 4px 10px rgba(109,40,217,0.3)' } })
     },
     dayText: {
         fontSize: 16,
@@ -623,7 +654,7 @@ const styles = StyleSheet.create({
     },
     mealContent: {
         color: '#4B5563',
-        marginLeft: 30, // aligning with text
+        marginLeft: 30, // 텍스트 위치에 맞춤
     },
     snackContainer: {
         flexDirection: 'row',
@@ -672,14 +703,14 @@ const styles = StyleSheet.create({
         color: '#4B5563',
     },
     aiDayCell: {
-        backgroundColor: '#FEF3C7', // Amber 100
+        backgroundColor: '#FEF3C7', // 앰버 100
         borderWidth: 1,
-        borderColor: '#FDE68A', // Amber 200
+        borderColor: '#FDE68A', // 앰버 200
     },
     activeDayCell: {
-        backgroundColor: '#DCFCE7', // Green 100
+        backgroundColor: '#DCFCE7', // 그린 100
         borderWidth: 1,
-        borderColor: '#BBF7D0', // Green 200
+        borderColor: '#BBF7D0', // 그린 200
     },
     aiBadge: {
         backgroundColor: colors.secondary,

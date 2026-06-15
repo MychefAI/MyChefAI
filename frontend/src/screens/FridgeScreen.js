@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, SafeAreaView, TextInput, Modal, Platform, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, SafeAreaView, TextInput, Modal, Platform, ActivityIndicator, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import * as ImagePicker from 'expo-image-picker';
@@ -10,13 +10,13 @@ import { useAuth } from '../context/AuthContext';
 
 const CATEGORIES = ['전체', '채소', '과일', '육류', '유제품', '달걀', '기타'];
 
-export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpen, onToggleSidebar }) {
+export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpen, onToggleSidebar, webMode = false }) {
     const { token } = useAuth();
     const [selectedCategory, setSelectedCategory] = useState('전체');
     const [modalVisible, setModalVisible] = useState(false);
     const [scanning, setScanning] = useState(false);
 
-    // Expiry Date rules
+    // 유통기한 기본 규칙
     const EXPIRY_RULES = {
         '육류': 2,
         '채소': 5,
@@ -33,18 +33,18 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
         return date.toISOString().split('T')[0];
     };
 
-    // Add Modal State
+    // 추가 모달 상태
     const [newItemName, setNewItemName] = useState('');
     const [newItemQuantity, setNewItemQuantity] = useState('');
     const [newItemCategory, setNewItemCategory] = useState('기타');
     const [newItemExpiry, setNewItemExpiry] = useState('');
     const [helpModalVisible, setHelpModalVisible] = useState(false);
 
-    // Edit Modal State
+    // 수정 모달 상태
     const [isEditMode, setIsEditMode] = useState(false);
     const [editingItemId, setEditingItemId] = useState(null);
 
-    // Fetch initial data
+    // 초기 데이터 조회
     useEffect(() => {
         fetchFridgeItems();
     }, []);
@@ -107,7 +107,7 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
     };
 
     const handleAdjustQuantity = async (id, currentQty, delta) => {
-        // Simple regex to find the number in "2개", "500g" etc.
+        // "2개", "500g" 같은 수량에서 숫자와 단위를 분리
         const match = currentQty.match(/^(\d+)(.*)$/);
         if (!match) return;
 
@@ -171,9 +171,9 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
     };
 
     const getExpiryColor = (daysLeft) => {
-        if (daysLeft <= 2) return { text: '#DC2626', bg: '#FEF2F2', border: '#FECACA' }; // Red
-        if (daysLeft <= 5) return { text: '#EA580C', bg: '#FFF7ED', border: '#FED7AA' }; // Orange
-        return { text: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0' }; // Green
+        if (daysLeft <= 2) return { text: '#DC2626', bg: '#FEF2F2', border: '#FECACA' }; // 빨간색
+        if (daysLeft <= 5) return { text: '#EA580C', bg: '#FFF7ED', border: '#FED7AA' }; // 주황색
+        return { text: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0' }; // 초록색
     };
 
     const handleScanReceipt = async () => {
@@ -244,7 +244,7 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
                         });
                     }
                     await fetchFridgeItems();
-                    alert(`${scannedItems.length}개의 재료가 자동으로 등록되었습니다! 🍎`);
+                    alert(`${scannedItems.length}개의 재료가 자동으로 등록되었습니다.`);
                 }
             } catch (error) {
                 console.error('영수증 스캔 실패:', error);
@@ -259,12 +259,84 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
         ? fridgeItems
         : fridgeItems.filter(item => item.category === selectedCategory);
 
+    const AnimatedItemCard = ({ item }) => {
+        const hoverAnim = React.useRef(new Animated.Value(1)).current;
+        const daysLeft = Math.ceil((new Date(item.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
+        const expiryColors = getExpiryColor(daysLeft);
+
+        const handleMouseEnter = () => {
+            if (Platform.OS === 'web') {
+                Animated.spring(hoverAnim, { toValue: 1.03, friction: 5, useNativeDriver: true }).start();
+            }
+        };
+
+        const handleMouseLeave = () => {
+            if (Platform.OS === 'web') {
+                Animated.spring(hoverAnim, { toValue: 1, friction: 5, useNativeDriver: true }).start();
+            }
+        };
+
+        return (
+            <Animated.View
+                style={[styles.itemCard, { transform: [{ scale: hoverAnim }] }]}
+                {...(Platform.OS === 'web' ? { onMouseEnter: handleMouseEnter, onMouseLeave: handleMouseLeave } : {})}
+            >
+                <View style={styles.itemHeader}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+                        <View style={styles.quantityContainer}>
+                            <TouchableOpacity
+                                onPress={() => handleAdjustQuantity(item.id, item.quantity, -1)}
+                                style={styles.qtyBtn}
+                            >
+                                <Ionicons name="remove-circle-outline" size={18} color="#6B7280" />
+                            </TouchableOpacity>
+                            <Text style={styles.itemQuantity}>{item.quantity}</Text>
+                            <TouchableOpacity
+                                onPress={() => handleAdjustQuantity(item.id, item.quantity, 1)}
+                                style={styles.qtyBtn}
+                            >
+                                <Ionicons name="add-circle-outline" size={18} color="#6B7280" />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                    <View style={styles.cardActions}>
+                        <TouchableOpacity onPress={() => openEditModal(item)} style={{ marginRight: 8 }}>
+                            <Ionicons name="create-outline" size={18} color="#4B5563" />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleDeleteItem(item.id)}>
+                            <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                <View style={styles.tagRow}>
+                    <View style={styles.categoryTag}>
+                        <Text style={styles.categoryTagText}>{item.category}</Text>
+                    </View>
+                </View>
+
+                <View style={[styles.expiryTag, { backgroundColor: expiryColors.bg, borderColor: expiryColors.border }]}>
+                    <Ionicons name="time-outline" size={14} color={expiryColors.text} />
+                    <Text style={[styles.expiryText, { color: expiryColors.text }]}>
+                        {daysLeft < 0 ? '기한 만료' : daysLeft === 0 ? '오늘 만료' : `${daysLeft}일 남음`}
+                    </Text>
+                    {daysLeft <= 1 && daysLeft >= 0 && (
+                        <View style={styles.alertBadge}>
+                            <Text style={styles.alertBadgeText}>임박</Text>
+                        </View>
+                    )}
+                </View>
+            </Animated.View>
+        );
+    };
+
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
+            {!webMode && <View style={styles.header}>
                 <View style={styles.headerLeft}>
                     <TouchableOpacity onPress={onToggleSidebar} style={styles.menuButton}>
-                        <Ionicons name="menu" size={28} color={colors.text} />
+                        <Ionicons name="menu" size={24} color={colors.primary} />
                     </TouchableOpacity>
                     <View>
                         <View style={styles.titleRow}>
@@ -297,9 +369,38 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
                         <Ionicons name="add" size={22} color="white" />
                     </TouchableOpacity>
                 </View>
-            </View>
+            </View>}
 
-            {/* Scanning Overlay */}
+            {webMode && (
+                <View style={styles.webActionBar}>
+                    <TouchableOpacity
+                        onPress={() => setHelpModalVisible(true)}
+                        style={styles.iconActionButton}
+                    >
+                        <Ionicons name="help-circle-outline" size={20} color="#4B5563" />
+                    </TouchableOpacity>
+                    <View style={styles.webActionButtons}>
+                        <TouchableOpacity
+                            style={styles.iconActionButton}
+                            onPress={handleScanReceipt}
+                            disabled={scanning}
+                        >
+                            <Ionicons name="scan-outline" size={22} color="#4B5563" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.primaryActionButton}
+                            onPress={() => {
+                                resetForm();
+                                setModalVisible(true);
+                            }}
+                        >
+                            <Ionicons name="add" size={22} color="white" />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
+
+            {/* 스캔 중 오버레이 */}
             {
                 scanning && (
                     <View style={styles.scanningOverlay}>
@@ -309,7 +410,7 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
                 )
             }
 
-            {/* Category Filter */}
+            {/* 카테고리 필터 */}
             <View style={styles.categoryContainer}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryContent}>
                     {CATEGORIES.map((cat) => (
@@ -332,7 +433,7 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
                 </ScrollView>
             </View>
 
-            {/* Stats Cards */}
+            {/* 통계 카드 */}
             <ScrollView style={styles.content}>
                 <View style={styles.statsRow}>
                     <View style={styles.statCard}>
@@ -359,62 +460,9 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
                     </View>
                 </View>
 
-                {/* Item Grid */}
+                {/* 재료 그리드 */}
                 <View style={styles.grid}>
-                    {filteredItems.map(item => {
-                        const daysLeft = Math.ceil((new Date(item.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
-                        const expiryColors = getExpiryColor(daysLeft);
-                        return (
-                            <View key={item.id} style={styles.itemCard}>
-                                <View style={styles.itemHeader}>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                                        <View style={styles.quantityContainer}>
-                                            <TouchableOpacity
-                                                onPress={() => handleAdjustQuantity(item.id, item.quantity, -1)}
-                                                style={styles.qtyBtn}
-                                            >
-                                                <Ionicons name="remove-circle-outline" size={18} color="#6B7280" />
-                                            </TouchableOpacity>
-                                            <Text style={styles.itemQuantity}>{item.quantity}</Text>
-                                            <TouchableOpacity
-                                                onPress={() => handleAdjustQuantity(item.id, item.quantity, 1)}
-                                                style={styles.qtyBtn}
-                                            >
-                                                <Ionicons name="add-circle-outline" size={18} color="#6B7280" />
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-                                    <View style={styles.cardActions}>
-                                        <TouchableOpacity onPress={() => openEditModal(item)} style={{ marginRight: 8 }}>
-                                            <Ionicons name="create-outline" size={18} color="#4B5563" />
-                                        </TouchableOpacity>
-                                        <TouchableOpacity onPress={() => handleDeleteItem(item.id)}>
-                                            <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-
-                                <View style={styles.tagRow}>
-                                    <View style={styles.categoryTag}>
-                                        <Text style={styles.categoryTagText}>{item.category}</Text>
-                                    </View>
-                                </View>
-
-                                <View style={[styles.expiryTag, { backgroundColor: expiryColors.bg, borderColor: expiryColors.border }]}>
-                                    <Ionicons name="time-outline" size={14} color={expiryColors.text} />
-                                    <Text style={[styles.expiryText, { color: expiryColors.text }]}>
-                                        {daysLeft < 0 ? '기한 만료' : daysLeft === 0 ? '오늘 만료' : `${daysLeft}일 남음`}
-                                    </Text>
-                                    {daysLeft <= 1 && daysLeft >= 0 && (
-                                        <View style={styles.alertBadge}>
-                                            <Text style={styles.alertBadgeText}>임박</Text>
-                                        </View>
-                                    )}
-                                </View>
-                            </View>
-                        );
-                    })}
+                    {filteredItems.map(item => <AnimatedItemCard key={item.id} item={item} />)}
                 </View>
 
                 {filteredItems.length === 0 && (
@@ -425,7 +473,7 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
                 )}
             </ScrollView>
 
-            {/* Add/Edit Modal */}
+            {/* 추가/수정 모달 */}
             <Modal
                 visible={modalVisible}
                 transparent
@@ -485,7 +533,7 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
                 </View>
             </Modal>
 
-            {/* Help Modal */}
+            {/* 도움말 모달 */}
             <Modal
                 visible={helpModalVisible}
                 transparent
@@ -503,33 +551,33 @@ export default function FridgeScreen({ fridgeItems, setFridgeItems, isSidebarOpe
 
                         <View style={styles.ruleTable}>
                             <View style={styles.ruleRow}>
-                                <Text style={styles.ruleLabel}>🍖 육류</Text>
+                                <Text style={styles.ruleLabel}>육류</Text>
                                 <Text style={styles.ruleValue}>+2일</Text>
                             </View>
                             <View style={styles.ruleRow}>
-                                <Text style={styles.ruleLabel}>🥬 채소</Text>
+                                <Text style={styles.ruleLabel}>채소</Text>
                                 <Text style={styles.ruleValue}>+5일</Text>
                             </View>
                             <View style={styles.ruleRow}>
-                                <Text style={styles.ruleLabel}>🍎 과일</Text>
+                                <Text style={styles.ruleLabel}>과일</Text>
                                 <Text style={styles.ruleValue}>+7일</Text>
                             </View>
                             <View style={styles.ruleRow}>
-                                <Text style={styles.ruleLabel}>🥛 유제품</Text>
+                                <Text style={styles.ruleLabel}>유제품</Text>
                                 <Text style={styles.ruleValue}>+10일</Text>
                             </View>
                             <View style={styles.ruleRow}>
-                                <Text style={styles.ruleLabel}>🥚 달걀</Text>
+                                <Text style={styles.ruleLabel}>달걀</Text>
                                 <Text style={styles.ruleValue}>+21일</Text>
                             </View>
                             <View style={styles.ruleRow}>
-                                <Text style={styles.ruleLabel}>📦 기타</Text>
+                                <Text style={styles.ruleLabel}>기타</Text>
                                 <Text style={styles.ruleValue}>+7일</Text>
                             </View>
                         </View>
 
                         <View style={styles.helpTips}>
-                            <Text style={styles.tipText}>• ➕/➖ 버튼으로 수량을 쉽게 조절하세요.</Text>
+                            <Text style={styles.tipText}>• 플러스/마이너스 버튼으로 수량을 쉽게 조절하세요.</Text>
                             <Text style={styles.tipText}>• 연필/쓰레기통 아이콘으로 수정과 삭제 가능!</Text>
                             <Text style={styles.tipText}>• 유통기한은 수정 모달에서 직접 변경 가능합니다.</Text>
                         </View>
@@ -551,27 +599,35 @@ const styles = StyleSheet.create({
         backgroundColor: '#F9FAFB',
     },
     header: {
-        padding: 16,
-        backgroundColor: 'white',
+        paddingHorizontal: 20,
+        paddingVertical: 14,
+        backgroundColor: '#FFF7ED',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingTop: Platform.OS === 'android' ? 40 : 16,
+        paddingTop: Platform.OS === 'android' ? 40 : 14,
         borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
+        borderBottomColor: '#FED7AA',
     },
     headerLeft: {
         flexDirection: 'row',
         alignItems: 'center',
     },
     menuButton: {
-        padding: 8,
-        marginRight: 8,
+        width: 40,
+        height: 40,
+        borderRadius: 14,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
+        borderWidth: 1,
+        borderColor: '#FED7AA',
     },
     headerTitle: {
         fontSize: 20,
         fontWeight: '800',
-        color: '#111827',
+        color: '#9A3412',
     },
     titleRow: {
         flexDirection: 'row',
@@ -582,11 +638,26 @@ const styles = StyleSheet.create({
         padding: 2,
     },
     headerSubtitle: {
-        fontSize: 13,
-        color: '#9CA3AF',
-        marginTop: 1,
+        fontSize: 12,
+        color: '#EA580C',
+        marginTop: 2,
     },
     headerRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    webActionBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 24,
+        paddingVertical: 14,
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#EEF0F3',
+    },
+    webActionButtons: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
@@ -595,11 +666,11 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#F3F4F6',
+        backgroundColor: '#FFFFFF',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: '#FED7AA',
     },
     primaryActionButton: {
         width: 44,
@@ -615,7 +686,7 @@ const styles = StyleSheet.create({
         elevation: 4,
     },
     addButtonText: {
-        display: 'none', // Text removed for cleaner look
+        display: 'none', // 더 깔끔하게 보이도록 텍스트 숨김
     },
     categoryContainer: {
         backgroundColor: 'white',
@@ -633,6 +704,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         borderWidth: 1,
         borderColor: '#E5E7EB',
+        ...Platform.select({ web: { cursor: 'pointer' } })
     },
     categoryChipSelected: {
         backgroundColor: '#3B82F6',
@@ -680,12 +752,13 @@ const styles = StyleSheet.create({
         paddingBottom: 24,
     },
     itemCard: {
-        width: '48%',
+        width: Platform.OS === 'web' ? '31%' : '48%',
         backgroundColor: 'white',
         padding: 16,
         borderRadius: 16,
         borderWidth: 1,
         borderColor: '#F3F4F6',
+        ...Platform.select({ web: { boxShadow: '0px 2px 10px rgba(0,0,0,0.03)' } })
     },
     itemHeader: {
         flexDirection: 'row',

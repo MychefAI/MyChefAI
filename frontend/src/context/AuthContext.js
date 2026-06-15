@@ -7,7 +7,7 @@ import { Platform } from 'react-native';
 import SafeStorage from '../utils/storage';
 import config from '../config';
 
-import { KAKAO_APP_KEY, GOOGLE_CLIENT_IDS, NAVER_CLIENT_ID } from '../secrets';
+import { KAKAO_APP_KEY, GOOGLE_CLIENT_IDS } from '../secrets';
 
 // 1. Context 생성
 const AuthContext = createContext();
@@ -22,12 +22,8 @@ export const AuthProvider = ({ children }) => {
     const [token, setToken] = useState(null);
     const [loading, setLoading] = useState(true); // Loading true by default for restoration
     const processedResponse = useRef(null); // Track processed auth responses to avoid loops
-    const naverRedirectUri = AuthSession.makeRedirectUri({
-        scheme: 'mychefai',
-        preferLocalhost: true,
-    });
 
-    // Restore Auth State on Mount
+    // 🔄 Restore Auth State on Mount
     useEffect(() => {
         console.log('[AUTH_TRACE] AuthProvider Mounted');
         const timer = setTimeout(() => {
@@ -74,29 +70,11 @@ export const AuthProvider = ({ children }) => {
         }),
     });
 
-    const [naverRequest, naverResponse, naverPromptAsync] = AuthSession.useAuthRequest(
-        {
-            clientId: NAVER_CLIENT_ID,
-            responseType: AuthSession.ResponseType.Code,
-            redirectUri: naverRedirectUri,
-            scopes: [],
-        },
-        {
-            authorizationEndpoint: 'https://nid.naver.com/oauth2.0/authorize',
-        }
-    );
-
     useEffect(() => {
         if (googleRequest) {
             console.log('Google Redirect URI:', googleRequest.redirectUri);
         }
     }, [googleRequest]);
-
-    useEffect(() => {
-        if (naverRequest) {
-            console.log('Naver Redirect URI:', naverRedirectUri);
-        }
-    }, [naverRequest, naverRedirectUri]);
 
 
     // Handle Google Response
@@ -111,17 +89,6 @@ export const AuthProvider = ({ children }) => {
             handleBackendAuthentication('google', authentication.accessToken, true);
         }
     }, [googleResponse]);
-
-    useEffect(() => {
-        if (
-            naverResponse?.type === 'success' &&
-            naverResponse.params?.code &&
-            processedResponse.current !== naverResponse.params.code
-        ) {
-            processedResponse.current = naverResponse.params.code;
-            handleNaverAuthentication(naverResponse.params.code, naverResponse.params.state, true);
-        }
-    }, [naverResponse]);
 
     // Backend Authentication Handler
     const handleBackendAuthentication = async (provider, accessToken, keepLoggedIn = true) => {
@@ -158,54 +125,12 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const handleNaverAuthentication = async (code, state, keepLoggedIn = true) => {
-        setLoading(true);
-        try {
-            const response = await axios.post(`${config.API_BASE_URL}/auth/naver`, {
-                code,
-                state,
-                redirectUri: naverRedirectUri,
-            });
-
-            const { token: jwtToken, user: userData } = response.data;
-
-            setToken(jwtToken);
-            setUser(userData);
-            setIsLoggedIn(true);
-
-            if (keepLoggedIn) {
-                await SafeStorage.setItem('user_token', jwtToken);
-                await SafeStorage.setItem('user_data', JSON.stringify(userData));
-            }
-
-            return true;
-        } catch (error) {
-            console.error('Naver authentication failed:', error);
-            alert('네이버 로그인에 실패했습니다.');
-            return false;
-        } finally {
-            setLoading(false);
-        }
-    };
-
     // Login Function Exposed to Components
     const login = async (socialType, keepLoggedIn = true) => {
         if (socialType === 'google') {
             // Google Login Prompt
             await googlePromptAsync();
             return true;
-        } else if (socialType === 'naver') {
-            if (!NAVER_CLIENT_ID) {
-                alert('네이버 Client ID가 설정되지 않았습니다.');
-                return false;
-            }
-
-            const result = await naverPromptAsync();
-            if (result?.type === 'success' && result.params?.code) {
-                processedResponse.current = result.params.code;
-                return await handleNaverAuthentication(result.params.code, result.params.state, keepLoggedIn);
-            }
-            return false;
         } else if (socialType === 'kakao') {
             try {
                 // Use Native SDK
@@ -238,20 +163,6 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    // Refresh User Data (e.g., after payment)
-    const refreshUser = async () => {
-        if (!token) return;
-        try {
-            const response = await axios.get(`${config.API_BASE_URL}/users/me`);
-            const userData = response.data;
-            setUser(userData);
-            await SafeStorage.setItem('user_data', JSON.stringify(userData));
-            console.log('User data refreshed:', userData.grade);
-        } catch (e) {
-            console.error('Failed to refresh user data:', e);
-        }
-    };
-
     // Axios Interceptor for JWT
     useEffect(() => {
         const interceptor = axios.interceptors.request.use(
@@ -267,7 +178,7 @@ export const AuthProvider = ({ children }) => {
     }, [token]);
 
     return (
-        <AuthContext.Provider value={{ isLoggedIn, user, token, login, logout, refreshUser, loading }}>
+        <AuthContext.Provider value={{ isLoggedIn, user, token, login, logout, loading }}>
             {children}
         </AuthContext.Provider>
     );

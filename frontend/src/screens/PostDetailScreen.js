@@ -17,17 +17,15 @@ import { colors } from '../theme/colors';
 import config from '../config';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../context/AuthContext';
 
-export default function PostDetailScreen({ post, user: propUser, onNavigate, onBack, webMode = false }) {
-    const { user, token } = useAuth();
+export default function PostDetailScreen({ post, user, onNavigate, onBack }) {
     const insets = useSafeAreaInsets();
     const [postData, setPostData] = useState(post);
     const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState('');
     const [loading, setLoading] = useState(false);
     const [submittingComment, setSubmittingComment] = useState(false);
-    const [replyingTo, setReplyingTo] = useState(null); // { id: 식별값, userName: 사용자명 }
+    const [replyingTo, setReplyingTo] = useState(null); // { id: Long, userName: String }
 
     useEffect(() => {
         loadPostDetails();
@@ -37,8 +35,7 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
     const loadPostDetails = async () => {
         try {
             const response = await axios.get(
-                `${config.API_BASE_URL}/community/posts/${post.id}`,
-                { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+                `${config.API_BASE_URL}/community/posts/${post.id}?currentUserId=${user?.id || ''}`
             );
             setPostData(response.data);
         } catch (error) {
@@ -49,8 +46,7 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
     const loadComments = async () => {
         try {
             const response = await axios.get(
-                `${config.API_BASE_URL}/community/posts/${post.id}/comments`,
-                { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+                `${config.API_BASE_URL}/community/posts/${post.id}/comments`
             );
             setComments(response.data);
         } catch (error) {
@@ -67,8 +63,7 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
         try {
             const response = await axios.post(
                 `${config.API_BASE_URL}/community/posts/${post.id}/like`,
-                {},
-                { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+                { userId: user.id }
             );
             setPostData({
                 ...postData,
@@ -98,6 +93,7 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
         }
 
         console.log('Submitting comment with:', {
+            userId: user.id,
             content: newComment.trim(),
             parentId: replyingTo ? replyingTo.id : null
         });
@@ -107,10 +103,10 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
             await axios.post(
                 `${config.API_BASE_URL}/community/posts/${post.id}/comments`,
                 {
+                    userId: user.id,
                     content: newComment.trim(),
                     parentId: replyingTo ? replyingTo.id : null
-                },
-                { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+                }
             );
             setNewComment('');
             setReplyingTo(null);
@@ -121,6 +117,7 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
             console.error('Error response:', error.response?.data);
             console.error('Error status:', error.response?.status);
             console.error('Request payload:', {
+                userId: user.id,
                 content: newComment.trim(),
                 parentId: replyingTo ? replyingTo.id : null
             });
@@ -131,10 +128,10 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
     };
 
     const handleDeleteComment = async (commentId) => {
-        console.log('Delete button clicked for comment:', commentId);
+        console.log('🗑️ Delete button clicked for comment:', commentId);
         console.log('User info:', { userId: user?.id, user });
 
-        // 웹 호환 확인창
+        // Web-compatible confirmation
         const confirmDelete = Platform.OS === 'web'
             ? window.confirm('댓글을 삭제하시겠습니까?')
             : await new Promise((resolve) => {
@@ -157,25 +154,23 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
             });
 
         if (!confirmDelete) {
-            console.log('Delete cancelled');
+            console.log('❌ Delete cancelled');
             return;
         }
 
-        console.log('Delete confirmed, sending request...');
+        console.log('✅ Delete confirmed, sending request...');
         try {
-            const deleteUrl = `${config.API_BASE_URL}/community/comments/${commentId}`;
+            const deleteUrl = `${config.API_BASE_URL}/community/comments/${commentId}?userId=${user.id}`;
             console.log('DELETE URL:', deleteUrl);
 
-            const response = await axios.delete(deleteUrl, {
-                headers: token ? { Authorization: `Bearer ${token}` } : {}
-            });
-            console.log('Delete successful:', response.data);
+            const response = await axios.delete(deleteUrl);
+            console.log('✅ Delete successful:', response.data);
 
             await loadComments();
             await loadPostDetails();
-            console.log('Comments reloaded');
+            console.log('✅ Comments reloaded');
         } catch (error) {
-            console.error('댓글 삭제 실패:', error);
+            console.error('❌ 댓글 삭제 실패:', error);
             console.error('Error response:', error.response?.data);
             console.error('Error status:', error.response?.status);
 
@@ -188,7 +183,7 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
     };
 
     const handleDeletePost = async () => {
-        console.log('handleDeletePost 함수 실행됨');
+        console.log('⚠️ handleDeletePost 함수 실행됨');
         console.log('Alert.alert 호출 직전');
         Alert.alert(
             '게시글 삭제',
@@ -197,22 +192,22 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
                 {
                     text: '취소',
                     style: 'cancel',
-                    onPress: () => console.log('취소 버튼 클릭됨')
+                    onPress: () => console.log('❌ 취소 버튼 클릭됨')
                 },
                 {
                     text: '삭제',
                     style: 'destructive',
                     onPress: async () => {
-                        console.log('삭제 확인 버튼 클릭됨');
+                        console.log('✅ 삭제 확인 버튼 클릭됨');
                         try {
                             console.log('게시글 삭제 요청:', {
                                 postId: post.id,
-                                url: `${config.API_BASE_URL}/community/posts/${post.id}`
+                                userId: user.id,
+                                url: `${config.API_BASE_URL}/community/posts/${post.id}?userId=${user.id}`
                             });
 
                             const response = await axios.delete(
-                                `${config.API_BASE_URL}/community/posts/${post.id}`,
-                                { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+                                `${config.API_BASE_URL}/community/posts/${post.id}?userId=${user.id}`
                             );
 
                             console.log('게시글 삭제 성공:', response.data);
@@ -259,7 +254,7 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
     const isAuthor = user && postData && user.id === postData.userId;
 
     // 디버깅 로그
-    console.log('PostDetailScreen 디버깅:', {
+    console.log('🔍 PostDetailScreen 디버깅:', {
         'user 객체': user,
         'user.id': user?.id,
         'postData.userId': postData?.userId,
@@ -269,19 +264,18 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
 
     return (
         <View style={styles.container}>
-            {/* 헤더 */}
-            {!webMode && <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 40 : 14) }]}>
-                <TouchableOpacity style={styles.headerIconButton} onPress={onBack}>
-                    <Ionicons name="arrow-back" size={22} color={colors.primary} />
+            {/* Header */}
+            <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}>
+                <TouchableOpacity onPress={onBack}>
+                    <Ionicons name="arrow-back" size={24} color={colors.text} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>게시글</Text>
                 {isAuthor && (
                     <TouchableOpacity onPress={async () => {
-                        console.log('삭제 버튼 클릭됨 - 직접 삭제');
+                        console.log('🗑️ 삭제 버튼 클릭됨 - 직접 삭제');
                         try {
                             const response = await axios.delete(
-                                `${config.API_BASE_URL}/community/posts/${post.id}`,
-                                { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+                                `${config.API_BASE_URL}/community/posts/${post.id}?userId=${user.id}`
                             );
                             console.log('삭제 성공:', response.data);
                             onNavigate && onNavigate('community');
@@ -293,34 +287,10 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
                     </TouchableOpacity>
                 )}
                 {!isAuthor && <View style={{ width: 22 }} />}
-            </View>}
-
-            {webMode && (
-                <View style={styles.webActionBar}>
-                    <TouchableOpacity style={styles.headerIconButton} onPress={onBack}>
-                        <Ionicons name="arrow-back" size={22} color={colors.primary} />
-                    </TouchableOpacity>
-                    {isAuthor ? (
-                        <TouchableOpacity onPress={async () => {
-                            try {
-                                await axios.delete(`${config.API_BASE_URL}/community/posts/${post.id}`, {
-                                    headers: token ? { Authorization: `Bearer ${token}` } : {}
-                                });
-                                onNavigate && onNavigate('community');
-                            } catch (error) {
-                                console.error('삭제 실패:', error);
-                            }
-                        }}>
-                            <Ionicons name="trash-outline" size={22} color={colors.error} />
-                        </TouchableOpacity>
-                    ) : (
-                        <View style={{ width: 22 }} />
-                    )}
-                </View>
-            )}
+            </View>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-                {/* 게시글 헤더 */}
+                {/* Post Header */}
                 <View style={styles.postHeader}>
                     <View style={styles.avatar}>
                         <Ionicons name="person" size={24} color="white" />
@@ -331,7 +301,7 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
                     </View>
                 </View>
 
-                {/* 게시글 내용 */}
+                {/* Post Content */}
                 <View style={styles.postContent}>
                     <Text style={styles.postTitle}>{postData.title}</Text>
                     <Text style={styles.postText}>{postData.content}</Text>
@@ -340,20 +310,20 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
                         <Image source={{ uri: postData.imageUrl }} style={styles.postImage} />
                     )}
 
-                    {/* 재료 */}
+                    {/* Ingredients */}
                     {postData.ingredients && postData.ingredients.length > 0 && (
                         <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>재료</Text>
+                            <Text style={styles.sectionTitle}>🛒 재료</Text>
                             {postData.ingredients.map((item, index) => (
                                 <Text key={index} style={styles.listItem}>• {item}</Text>
                             ))}
                         </View>
                     )}
 
-                    {/* 조리 순서 */}
+                    {/* Steps */}
                     {postData.steps && postData.steps.length > 0 && (
                         <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>조리 순서</Text>
+                            <Text style={styles.sectionTitle}>👨‍🍳 조리 순서</Text>
                             {postData.steps.map((item, index) => (
                                 <Text key={index} style={styles.stepItem}>
                                     {index + 1}. {item}
@@ -363,7 +333,7 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
                     )}
                 </View>
 
-                {/* 액션 */}
+                {/* Actions */}
                 <View style={styles.actions}>
                     <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
                         <Ionicons
@@ -381,13 +351,13 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
 
                 <View style={styles.divider} />
 
-                {/* 댓글 영역 */}
+                {/* Comments Section */}
                 <View style={styles.commentsSection}>
                     <Text style={styles.commentsTitle}>댓글 {comments.length}</Text>
 
                     {comments.filter(c => !c.parentId).map((comment) => (
                         <View key={comment.id}>
-                            {/* 메인 댓글 */}
+                            {/* Main Comment */}
                             <View style={styles.commentItem}>
                                 <View style={styles.commentHeader}>
                                     <View style={styles.commentUserInfo}>
@@ -416,7 +386,7 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
                                 <Text style={styles.commentText}>{comment.content}</Text>
                             </View>
 
-                            {/* 답글 */}
+                            {/* Replies */}
                             {comments.filter(reply => reply.parentId === comment.id).map(reply => (
                                 <View key={reply.id} style={styles.replyItem}>
                                     <View style={styles.replyHeader}>
@@ -444,7 +414,7 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
                 </View>
             </ScrollView>
 
-            {/* 답글 정보 */}
+            {/* Reply Info */}
             {replyingTo && (
                 <View style={styles.replyInfoContainer}>
                     <Text style={styles.replyInfoText}>
@@ -456,7 +426,7 @@ export default function PostDetailScreen({ post, user: propUser, onNavigate, onB
                 </View>
             )}
 
-            {/* 댓글 입력 */}
+            {/* Comment Input */}
             <View style={styles.commentInputContainer}>
                 <TextInput
                     style={styles.commentInput}
@@ -491,36 +461,16 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingBottom: 14,
-        backgroundColor: '#FFF7ED',
+        paddingHorizontal: 16,
+        paddingBottom: 12,
+        backgroundColor: colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: '#FED7AA',
-    },
-    headerIconButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 14,
-        backgroundColor: '#FFFFFF',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: '#FED7AA',
+        borderBottomColor: colors.border,
     },
     headerTitle: {
-        fontSize: 20,
-        fontWeight: '800',
-        color: '#9A3412',
-    },
-    webActionBar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 24,
-        paddingVertical: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: '#EEF0F3',
-        backgroundColor: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: colors.text,
     },
     content: {
         flex: 1,

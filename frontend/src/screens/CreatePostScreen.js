@@ -19,7 +19,7 @@ import config from '../config';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export default function CreatePostScreen({ onNavigate, user, webMode = false }) {
+export default function CreatePostScreen({ onNavigate, user }) {
     const insets = useSafeAreaInsets();
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
@@ -97,6 +97,7 @@ export default function CreatePostScreen({ onNavigate, user, webMode = false }) 
                 .filter(item => item.length > 0);
 
             console.log('게시글 작성 요청:', {
+                userId: user?.id,
                 title: title.trim(),
                 content: content.trim(),
                 ingredients: ingredients.length > 0 ? ingredients : null,
@@ -106,6 +107,7 @@ export default function CreatePostScreen({ onNavigate, user, webMode = false }) 
             });
 
             const response = await axios.post(`${config.API_BASE_URL}/community/posts`, {
+                userId: user?.id,
                 title: title.trim(),
                 content: content.trim(),
                 ingredients: ingredients.length > 0 ? ingredients : null,
@@ -144,10 +146,10 @@ export default function CreatePostScreen({ onNavigate, user, webMode = false }) 
 
     return (
         <View style={styles.container}>
-            {/* 헤더 */}
-            {!webMode && <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 40 : 14) }]}>
-                <TouchableOpacity style={styles.headerIconButton} onPress={() => onNavigate && onNavigate('community')}>
-                    <Ionicons name="close" size={24} color={colors.primary} />
+            {/* Header */}
+            <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}>
+                <TouchableOpacity onPress={() => onNavigate && onNavigate('community')}>
+                    <Ionicons name="close" size={28} color={colors.text} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>레시피 작성</Text>
                 <TouchableOpacity
@@ -159,28 +161,11 @@ export default function CreatePostScreen({ onNavigate, user, webMode = false }) 
                         {submitting ? '작성 중...' : '완료'}
                     </Text>
                 </TouchableOpacity>
-            </View>}
-
-            {webMode && (
-                <View style={styles.webActionBar}>
-                    <TouchableOpacity style={styles.headerIconButton} onPress={() => onNavigate && onNavigate('community')}>
-                        <Ionicons name="close" size={22} color={colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        onPress={handleSubmit}
-                        disabled={submitting}
-                        style={styles.submitButton}
-                    >
-                        <Text style={[styles.submitText, submitting && styles.submitTextDisabled]}>
-                            {submitting ? '작성 중...' : '완료'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            )}
+            </View>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 
-                {/* 제목 */}
+                {/* Title */}
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>제목 *</Text>
                     <TextInput
@@ -192,7 +177,7 @@ export default function CreatePostScreen({ onNavigate, user, webMode = false }) 
                     />
                 </View>
 
-                {/* 내용 */}
+                {/* Content */}
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>내용 *</Text>
                     <TextInput
@@ -207,7 +192,7 @@ export default function CreatePostScreen({ onNavigate, user, webMode = false }) 
                     />
                 </View>
 
-                {/* 재료 */}
+                {/* Ingredients */}
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>재료 (선택)</Text>
                     <Text style={styles.hint}>한 줄에 하나씩 입력해주세요</Text>
@@ -223,7 +208,7 @@ export default function CreatePostScreen({ onNavigate, user, webMode = false }) 
                     />
                 </View>
 
-                {/* 조리 순서 */}
+                {/* Steps */}
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>조리 순서 (선택)</Text>
                     <Text style={styles.hint}>한 줄에 한 단계씩 입력해주세요</Text>
@@ -239,7 +224,7 @@ export default function CreatePostScreen({ onNavigate, user, webMode = false }) 
                     />
                 </View>
 
-                {/* 이미지 선택 */}
+                {/* Image Selection */}
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>사진 (선택)</Text>
                     <View style={styles.imagePickerContainer}>
@@ -268,7 +253,7 @@ export default function CreatePostScreen({ onNavigate, user, webMode = false }) 
                     </View>
                 </View>
 
-                {/* 태그 */}
+                {/* Tags */}
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>태그 선택</Text>
                     <View style={styles.tagContainer}>
@@ -290,7 +275,7 @@ export default function CreatePostScreen({ onNavigate, user, webMode = false }) 
                     </View>
                 </View>
 
-                {/* 이미지 URL 대체 입력 */}
+                {/* Image URL fallback */}
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>이미지 URL 직접 입력 (선택)</Text>
                     <TextInput
@@ -318,39 +303,19 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingBottom: 14,
-        backgroundColor: '#FFF7ED',
+        paddingHorizontal: 16,
+        paddingBottom: 12,
+        backgroundColor: colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: '#FED7AA',
-    },
-    headerIconButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 14,
-        backgroundColor: '#FFFFFF',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: '#FED7AA',
+        borderBottomColor: colors.border,
     },
     headerTitle: {
-        fontSize: 20,
-        fontWeight: '800',
-        color: '#9A3412',
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: colors.text,
     },
     submitButton: {
         paddingHorizontal: 8,
-    },
-    webActionBar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 24,
-        paddingVertical: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: '#EEF0F3',
-        backgroundColor: '#FFFFFF',
     },
     submitText: {
         fontSize: 16,

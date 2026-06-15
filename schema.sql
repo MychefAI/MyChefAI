@@ -4,8 +4,7 @@ CREATE TABLE users (
   email       VARCHAR(255) NOT NULL UNIQUE,
   password    VARCHAR(255) NOT NULL,
   name        VARCHAR(100) NOT NULL,
-  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  grade       VARCHAR(20) DEFAULT 'BASIC'
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
@@ -63,27 +62,16 @@ CREATE TABLE fridge_items (
 
 
 -- 4.5) ACTIVITY_LOGS (1:N) - Daily user activity tracking
-CREATE TABLE IF NOT EXISTS activity_logs (
+CREATE TABLE activity_logs (
   id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id            BIGINT NOT NULL,
   activity_date      DATE NOT NULL,
   has_ai_interaction BOOLEAN DEFAULT FALSE,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_activity_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE,
   UNIQUE KEY uk_activity_user_date (user_id, activity_date),
   INDEX idx_activity_user (user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-
--- 13) PAYMENTS (멤버십 결제 내역)
-CREATE TABLE IF NOT EXISTS payments (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    merchant_uid VARCHAR(255) UNIQUE NOT NULL,
-    imp_uid VARCHAR(255),
-    amount INT NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    user_id BIGINT,
-    paid_at TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
@@ -236,17 +224,4 @@ CREATE TABLE post_likes (
   UNIQUE KEY uk_post_user_like (post_id, user_id),
   INDEX idx_like_post (post_id),
   INDEX idx_like_user (user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-
--- 13) PAYMENTS (멤버십 결제 내역)
-CREATE TABLE payments (
-    id           BIGINT AUTO_INCREMENT PRIMARY KEY,
-    merchant_uid VARCHAR(100) UNIQUE NOT NULL,
-    imp_uid      VARCHAR(100),
-    amount       INT NOT NULL,
-    status       VARCHAR(20),
-    user_id      BIGINT,
-    paid_at      DATETIME,
-    CONSTRAINT fk_payment_user FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

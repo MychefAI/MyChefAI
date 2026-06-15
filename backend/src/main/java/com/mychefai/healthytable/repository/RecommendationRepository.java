@@ -10,7 +10,5 @@ import java.util.List;
 public interface RecommendationRepository extends JpaRepository<Recommendation, Long> {
     List<Recommendation> findByUserIdOrderByScoreDesc(Long userId);
 
-    long countByUserId(Long userId);
-
     void deleteByUserId(Long userId);
 }

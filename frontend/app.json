@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Salus",
-    "slug": "salus",
+    "name": "frontend",
+    "slug": "frontend",
     "version": "1.0.0",
     "scheme": "mychefai",
     "orientation": "portrait",

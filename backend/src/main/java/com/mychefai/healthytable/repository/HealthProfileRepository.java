@@ -9,8 +9,4 @@ import java.util.Optional;
 @Repository
 public interface HealthProfileRepository extends JpaRepository<HealthProfile, Long> {
     Optional<HealthProfile> findByUserId(Long userId);
-
-    long countByUserId(Long userId);
-
-    void deleteByUserId(Long userId);
 }

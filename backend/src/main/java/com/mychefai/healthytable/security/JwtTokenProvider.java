@@ -2,7 +2,6 @@ package com.mychefai.healthytable.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
@@ -11,17 +10,11 @@ import java.util.Date;
 @Component
 public class JwtTokenProvider {
 
-    @Value("${jwt.secret}")
-    private String secretKey;
-
+    private final String SECRET_KEY = "mychefaisecretkeymychefaisecretkeymychefaisecretkey"; // 32byte 이상
     private final long VALIDITY_IN_MS = 3600000; // 1h
 
     private Key getSigningKey() {
-        byte[] keyBytes = secretKey.getBytes();
-        if (keyBytes.length < 32) {
-            throw new IllegalArgumentException("JWT 시크릿 키는 보안을 위해 반드시 최소 32바이트(256비트) 이상이어야 합니다!");
-        }
-        return Keys.hmacShaKeyFor(keyBytes);
+        return Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
     }
 
     public String createToken(String userId) {

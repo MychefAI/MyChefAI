@@ -1,5 +1,5 @@
 -- ==========================================
--- Salus Database Script (Full Reset)
+-- MyChefAI Database Script (Full Reset)
 -- ==========================================
 
 SET FOREIGN_KEY_CHECKS = 0;
@@ -11,7 +11,6 @@ DROP TABLE IF EXISTS recipe_shares;
 DROP TABLE IF EXISTS ratings;
 DROP TABLE IF EXISTS recipes;
 DROP TABLE IF EXISTS activity_logs;
-DROP TABLE IF EXISTS payments;
 DROP TABLE IF EXISTS fridge_items;
 DROP TABLE IF EXISTS meal_logs;
 DROP TABLE IF EXISTS health_profiles;
@@ -29,8 +28,7 @@ CREATE TABLE users (
   email       VARCHAR(255) NOT NULL UNIQUE,
   password    VARCHAR(255) NOT NULL,
   name        VARCHAR(100) NOT NULL,
-  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  grade       VARCHAR(20) DEFAULT 'BASIC'
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
@@ -100,19 +98,6 @@ CREATE TABLE activity_logs (
     ON DELETE CASCADE,
   UNIQUE KEY uk_activity_user_date (user_id, activity_date),
   INDEX idx_activity_user (user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-
--- 4.6) PAYMENTS - 멤버십 결제 내역
-CREATE TABLE IF NOT EXISTS payments (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    merchant_uid VARCHAR(255) UNIQUE NOT NULL,
-    imp_uid VARCHAR(255),
-    amount INT NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    user_id BIGINT,
-    paid_at TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
@@ -202,19 +187,6 @@ CREATE TABLE recommendations (
     ON DELETE CASCADE,
   INDEX idx_reco_user (user_id, created_at),
   INDEX idx_reco_recipe (recipe_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-
--- 10) PAYMENTS (멤버십 결제 내역)
-CREATE TABLE payments (
-    id           BIGINT AUTO_INCREMENT PRIMARY KEY,
-    merchant_uid VARCHAR(100) UNIQUE NOT NULL,
-    imp_uid      VARCHAR(100),
-    amount       INT NOT NULL,
-    status       VARCHAR(20),
-    user_id      BIGINT,
-    paid_at      DATETIME,
-    CONSTRAINT fk_payment_user FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 

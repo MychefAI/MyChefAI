@@ -11,8 +11,4 @@ public interface FridgeItemRepository extends JpaRepository<FridgeItem, Long> {
     List<FridgeItem> findByUserIdOrderByExpiryDate(Long userId);
 
     List<FridgeItem> findByUserId(Long userId);
-
-    long countByUserId(Long userId);
-
-    void deleteByUserId(Long userId);
 }

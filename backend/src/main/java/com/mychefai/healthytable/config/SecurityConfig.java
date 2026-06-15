@@ -1,11 +1,8 @@
 package com.mychefai.healthytable.config;
 
 import com.mychefai.healthytable.security.JwtAuthenticationFilter;
-import com.mychefai.healthytable.security.IpWhitelistFilter;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -23,18 +20,9 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final IpWhitelistFilter ipWhitelistFilter;
-    private final CoopHeaderFilter coopHeaderFilter;
 
-    @Value("${app.cors.allowed-origins:*}")
-    private String allowedOrigins;
-
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
-            IpWhitelistFilter ipWhitelistFilter,
-            CoopHeaderFilter coopHeaderFilter) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-        this.ipWhitelistFilter = ipWhitelistFilter;
-        this.coopHeaderFilter = coopHeaderFilter;
     }
 
     @Bean
@@ -43,24 +31,20 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        // CORS Preflight 요청 허용
+                        // Allow Preflight Requests (CORS)
                         .requestMatchers(CorsUtils::isPreFlightRequest).permitAll()
-                        // 게스트 접근 허용 엔드포인트
+                        // Allow Guest Access
                         .requestMatchers("/api/chat/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/recipes/**").permitAll() // 홈 화면용
-                        // 커뮤니티 읽기 엔드포인트는 공개, 작성/수정/삭제/좋아요는 인증 필요
-                        .requestMatchers(HttpMethod.GET, "/api/community/**").permitAll()
-                        // 그 외 요청은 인증 필요
-                        .requestMatchers("/api/community/**").authenticated()
+                        .requestMatchers("/api/recipes/**").permitAll() // For Home Screen
+                        // Community endpoints
+                        .requestMatchers("/api/community/**").permitAll()
+                        // Fridge Scan endpoint
+                        .requestMatchers("/api/fridge/scan").permitAll()
+                        // Require Authentication for others
                         .requestMatchers("/api/fridge/**").authenticated()
-                        .requestMatchers("/api/health-checkups/**").authenticated()
-                        .requestMatchers("/api/users/**").authenticated()
-                        .requestMatchers("/api/admin/**").authenticated()
-                        .anyRequest().authenticated()
+                        .anyRequest().permitAll() // Allow others for development ease
                 )
-                .addFilterBefore(coopHeaderFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(ipWhitelistFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -69,8 +53,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(allowedOrigins.split(",")));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedOrigins(List.of("*"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

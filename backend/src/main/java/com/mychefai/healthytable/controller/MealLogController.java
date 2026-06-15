@@ -24,7 +24,8 @@ public class MealLogController {
 
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String userIdStr = (String) authentication.getPrincipal(); // JwtTokenProvider가 토큰 발급 시 식별자를 subject로 설정하므로 이를 기반으로 사용자 ID 획득
+        String userIdStr = (String) authentication.getPrincipal(); // Based on JwtTokenProvider setting subject as
+                                                                   // userId
         return userRepository.findById(Long.parseLong(userIdStr))
                 .orElseThrow(() -> new RuntimeException("User not found"));
     }
@@ -38,7 +39,9 @@ public class MealLogController {
     @PostMapping
     public ResponseEntity<MealLog> saveMealLog(@RequestBody MealLogDTO dto) {
         User user = getCurrentUser();
-        // 프론트엔드에서 전송한 식단 데이터 DTO 바인딩 처리 진행
+        // The DTO needs to be updated or we need to ensure the service handles the new
+        // fields mapping if DTO has them.
+        // Assuming we need to update DTO first. Wait, let me check DTO.
         return ResponseEntity.ok(mealLogService.saveOrUpdateMealLog(user, dto));
     }
 
